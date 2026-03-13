@@ -19,7 +19,10 @@ export default [
     },
     rules: {
       'no-unused-vars': 'warn',
-      'no-console': 'off'
+      'no-console': 'off',
+      'curly': 'error',
+      'eqeqeq': 'error',
+      'no-extra-semi': 'error'
     }
   }
 ]
