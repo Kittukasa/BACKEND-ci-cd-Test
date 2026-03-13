@@ -28,7 +28,7 @@ const fileTransport = new DailyRotateFile({
   datePattern: 'YYYY-MM-DD',
   maxSize: '1m',
   maxFiles: '3d',
-  format: logFormat
+  format: logFormat,
 });
 
 // Create logger
@@ -38,9 +38,9 @@ const logger = winston.createLogger({
   transports: [
     fileTransport,
     new winston.transports.Console({
-      format: consoleFormat
-    })
-  ]
+      format: consoleFormat,
+    }),
+  ],
 });
 
 // Custom transport to capture logs in memory buffer
@@ -50,16 +50,16 @@ class MemoryTransport extends winston.Transport {
       timestamp: info.timestamp,
       level: info.level.toUpperCase(),
       message: info.message,
-      meta: info.meta || {}
+      meta: info.meta || {},
     };
-    
+
     logBuffer.push(logEntry);
-    
+
     // Keep buffer size limited
     if (logBuffer.length > LOG_BUFFER_SIZE) {
       logBuffer.shift();
     }
-    
+
     callback();
   }
 }
@@ -70,5 +70,5 @@ logger.add(new MemoryTransport());
 module.exports = {
   logger,
   getLogBuffer: () => [...logBuffer],
-  LOG_BUFFER_SIZE
+  LOG_BUFFER_SIZE,
 };

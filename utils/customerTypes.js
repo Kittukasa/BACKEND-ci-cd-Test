@@ -1,10 +1,10 @@
 const DEFAULT_CUSTOMER_TYPE_CONFIG = {
   premium: { min: 10000 },
   standard: { min: 5000, max: 9999 },
-  basic: { max: 4999 }
+  basic: { max: 4999 },
 };
 
-const clampNumber = value => {
+const clampNumber = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
@@ -46,7 +46,7 @@ const sanitizeCustomerTypeConfig = (input = {}) => {
   return {
     premium: { min: premiumMin },
     standard: { min: standardMin, max: standardMax },
-    basic: { max: basicMax }
+    basic: { max: basicMax },
   };
 };
 
@@ -65,5 +65,5 @@ const determineCustomerType = (total = 0, config = DEFAULT_CUSTOMER_TYPE_CONFIG)
 module.exports = {
   DEFAULT_CUSTOMER_TYPE_CONFIG,
   sanitizeCustomerTypeConfig,
-  determineCustomerType
+  determineCustomerType,
 };

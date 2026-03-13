@@ -20,7 +20,8 @@ const toNumber = (value) => {
   return Number.isFinite(parsed) ? parsed : 0;
 };
 
-const normalizeId = (value) => (value === null || value === undefined ? '' : value.toString().trim());
+const normalizeId = (value) =>
+  value === null || value === undefined ? '' : value.toString().trim();
 
 const buildWalletDefaults = () => ({
   balance: 0,
@@ -30,7 +31,7 @@ const buildWalletDefaults = () => ({
   pricing_ebill_invoice: 0,
   pricing_smart_ebill: 0,
   pricing_campaign_message: 0,
-  updated_at: new Date().toISOString()
+  updated_at: new Date().toISOString(),
 });
 
 async function getWalletItem(franchiseId, storeId) {
@@ -43,8 +44,8 @@ async function getWalletItem(franchiseId, storeId) {
         TableName: WALLET_TABLE,
         Key: {
           franchise_id: franchiseId,
-          store_id: storeId
-        }
+          store_id: storeId,
+        },
       })
     );
     return response.Item || null;
@@ -52,7 +53,7 @@ async function getWalletItem(franchiseId, storeId) {
     logger.error('Failed to load wallet config', {
       franchiseId,
       storeId,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -68,7 +69,7 @@ async function putWalletItem(franchiseId, storeId, overrides = {}) {
     store_id: storeId,
     ...buildWalletDefaults(),
     ...overrides,
-    updated_at: now
+    updated_at: now,
   };
   Object.keys(item).forEach((key) => {
     if (item[key] === undefined) {
@@ -79,7 +80,7 @@ async function putWalletItem(franchiseId, storeId, overrides = {}) {
     await docClient.send(
       new PutCommand({
         TableName: WALLET_TABLE,
-        Item: item
+        Item: item,
       })
     );
     return item;
@@ -87,7 +88,7 @@ async function putWalletItem(franchiseId, storeId, overrides = {}) {
     logger.error('Failed to create wallet config', {
       franchiseId,
       storeId,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -129,14 +130,14 @@ async function getStoreConfigById(storeId) {
     const response = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
     return response.Item || null;
   } catch (error) {
     logger.error('Failed to load store config for billing', {
       storeId,
-      error: error.message
+      error: error.message,
     });
     return null;
   }
@@ -185,17 +186,17 @@ async function updateWalletBalance(franchiseId, balance) {
       TableName: WALLET_TABLE,
       Key: {
         franchise_id: franchiseId,
-        store_id: DEFAULT_STORE_SCOPE
+        store_id: DEFAULT_STORE_SCOPE,
       },
       UpdateExpression: 'SET #balance = :balance, #updated_at = :updated_at',
       ExpressionAttributeNames: {
         '#balance': 'balance',
-        '#updated_at': 'updated_at'
+        '#updated_at': 'updated_at',
       },
       ExpressionAttributeValues: {
         ':balance': balance,
-        ':updated_at': now
-      }
+        ':updated_at': now,
+      },
     })
   );
 }
@@ -210,20 +211,20 @@ async function addWalletBalance(franchiseId, amount) {
       TableName: WALLET_TABLE,
       Key: {
         franchise_id: franchiseId,
-        store_id: DEFAULT_STORE_SCOPE
+        store_id: DEFAULT_STORE_SCOPE,
       },
       UpdateExpression:
         'SET #balance = if_not_exists(#balance, :zero) + :amount, #updated_at = :updated_at',
       ExpressionAttributeNames: {
         '#balance': 'balance',
-        '#updated_at': 'updated_at'
+        '#updated_at': 'updated_at',
       },
       ExpressionAttributeValues: {
         ':amount': amount,
         ':zero': 0,
-        ':updated_at': now
+        ':updated_at': now,
       },
-      ReturnValues: 'UPDATED_NEW'
+      ReturnValues: 'UPDATED_NEW',
     })
   );
   return toNumber(response?.Attributes?.balance);
@@ -234,7 +235,7 @@ async function logWalletEvent(franchiseId, payload) {
     if (BILLING_DEBUG) {
       logger.warn('Wallet events table not configured', {
         franchiseId,
-        tableName: WALLET_EVENTS_TABLE || null
+        tableName: WALLET_EVENTS_TABLE || null,
       });
     }
     return;
@@ -245,7 +246,7 @@ async function logWalletEvent(franchiseId, payload) {
     franchise_id: franchiseId,
     event_id: eventId,
     timestamp: payload.timestamp || now,
-    ...payload
+    ...payload,
   };
   item[WALLET_EVENTS_SORT_KEY] = `${item.timestamp}#${eventId}`;
   await docClient.send(
@@ -254,8 +255,8 @@ async function logWalletEvent(franchiseId, payload) {
       Item: {
         franchise_id: item.franchise_id,
         [WALLET_EVENTS_SORT_KEY]: item[WALLET_EVENTS_SORT_KEY],
-        ...item
-      }
+        ...item,
+      },
     })
   );
 }
@@ -266,7 +267,7 @@ async function recordUsage({
   usageType,
   quantity = 1,
   sourceId = null,
-  storeConfig = null
+  storeConfig = null,
 }) {
   const normalizedStoreId = normalizeId(storeId);
   let normalizedFranchiseId = normalizeId(franchiseId);
@@ -302,7 +303,7 @@ async function recordUsage({
           storeId: normalizedStoreId,
           usageType,
           unitPrice,
-          quantity: toNumber(quantity)
+          quantity: toNumber(quantity),
         });
       }
       return { skipped: true, reason: 'zero_amount' };
@@ -320,7 +321,7 @@ async function recordUsage({
       store_id: normalizedStoreId || null,
       source_id: sourceId,
       currency,
-      timestamp: now
+      timestamp: now,
     });
     if (BILLING_DEBUG) {
       logger.info('Wallet usage recorded', {
@@ -332,7 +333,7 @@ async function recordUsage({
         balanceAfter: newBalance,
         walletTable: WALLET_TABLE,
         eventsTable: WALLET_EVENTS_TABLE,
-        eventsSortKey: WALLET_EVENTS_SORT_KEY
+        eventsSortKey: WALLET_EVENTS_SORT_KEY,
       });
     }
   } catch (error) {
@@ -340,7 +341,7 @@ async function recordUsage({
       franchiseId: normalizedFranchiseId,
       storeId: normalizedStoreId,
       usageType,
-      error: error.message
+      error: error.message,
     });
     return { skipped: false, error: error.message };
   }
@@ -354,14 +355,20 @@ async function recordUsage({
       storeId: normalizedStoreId || null,
       usageType,
       balance: newBalance,
-      threshold
+      threshold,
     });
   }
 
   return { skipped: false, balance: newBalance, amount };
 }
 
-async function creditWallet({ franchiseId, amount, sourceId, reason = 'wallet_topup', metadata = {} }) {
+async function creditWallet({
+  franchiseId,
+  amount,
+  sourceId,
+  reason = 'wallet_topup',
+  metadata = {},
+}) {
   const normalizedFranchiseId = normalizeId(franchiseId);
   const topupAmount = toNumber(amount);
   if (!normalizedFranchiseId) {
@@ -372,7 +379,7 @@ async function creditWallet({ franchiseId, amount, sourceId, reason = 'wallet_to
     if (BILLING_DEBUG) {
       logger.info('Skipping wallet credit (zero amount)', {
         franchiseId: normalizedFranchiseId,
-        amount: topupAmount
+        amount: topupAmount,
       });
     }
     return { skipped: true, reason: 'zero_amount' };
@@ -395,13 +402,13 @@ async function creditWallet({ franchiseId, amount, sourceId, reason = 'wallet_to
       source_id: sourceId || null,
       currency,
       timestamp: now,
-      ...metadata
+      ...metadata,
     });
     if (BILLING_DEBUG) {
       logger.info('Wallet credit recorded', {
         franchiseId: normalizedFranchiseId,
         amount: topupAmount,
-        balanceAfter: newBalance
+        balanceAfter: newBalance,
       });
     }
     return { skipped: false, balance: newBalance, amount: topupAmount };
@@ -409,7 +416,7 @@ async function creditWallet({ franchiseId, amount, sourceId, reason = 'wallet_to
     logger.error('Failed to record wallet credit', {
       franchiseId: normalizedFranchiseId,
       amount: topupAmount,
-      error: error.message
+      error: error.message,
     });
     return { skipped: false, error: error.message };
   }
@@ -418,5 +425,5 @@ async function creditWallet({ franchiseId, amount, sourceId, reason = 'wallet_to
 module.exports = {
   recordUsage,
   getFranchiseIdForStore,
-  creditWallet
+  creditWallet,
 };

@@ -1,6 +1,11 @@
 const { config } = require('dotenv');
 const { docClient } = require('../config/dynamodb');
-const { ScanCommand, QueryCommand, BatchWriteCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const {
+  ScanCommand,
+  QueryCommand,
+  BatchWriteCommand,
+  UpdateCommand,
+} = require('@aws-sdk/lib-dynamodb');
 
 config();
 
@@ -15,7 +20,7 @@ const parseArgs = () => {
     mode: 'both',
     apply: false,
     franchiseId: null,
-    removeZeroAmount: false
+    removeZeroAmount: false,
   };
 
   args.forEach((arg) => {
@@ -50,7 +55,7 @@ const scanAll = async (params) => {
     const result = await docClient.send(
       new ScanCommand({
         ...params,
-        ExclusiveStartKey: lastEvaluatedKey
+        ExclusiveStartKey: lastEvaluatedKey,
       })
     );
     if (result.Items) {
@@ -68,7 +73,7 @@ const queryAll = async (params) => {
     const result = await docClient.send(
       new QueryCommand({
         ...params,
-        ExclusiveStartKey: lastEvaluatedKey
+        ExclusiveStartKey: lastEvaluatedKey,
       })
     );
     if (result.Items) {
@@ -84,8 +89,8 @@ const getFranchiseWallets = async (franchiseId) => {
     TableName: WALLET_TABLE,
     FilterExpression: 'store_id = :storeScope',
     ExpressionAttributeValues: {
-      ':storeScope': DEFAULT_STORE_SCOPE
-    }
+      ':storeScope': DEFAULT_STORE_SCOPE,
+    },
   };
   if (franchiseId) {
     params.FilterExpression = 'store_id = :storeScope AND franchise_id = :fid';
@@ -99,8 +104,8 @@ const getFranchiseEvents = async (franchiseId) => {
     TableName: WALLET_EVENTS_TABLE,
     KeyConditionExpression: 'franchise_id = :fid',
     ExpressionAttributeValues: {
-      ':fid': franchiseId
-    }
+      ':fid': franchiseId,
+    },
   });
 };
 
@@ -157,15 +162,15 @@ const deleteEvents = async (franchiseId, events, apply) => {
       DeleteRequest: {
         Key: {
           franchise_id: franchiseId,
-          [WALLET_EVENTS_SORT_KEY]: event[WALLET_EVENTS_SORT_KEY]
-        }
-      }
+          [WALLET_EVENTS_SORT_KEY]: event[WALLET_EVENTS_SORT_KEY],
+        },
+      },
     }));
     await docClient.send(
       new BatchWriteCommand({
         RequestItems: {
-          [WALLET_EVENTS_TABLE]: deleteRequests
-        }
+          [WALLET_EVENTS_TABLE]: deleteRequests,
+        },
       })
     );
     deleted += batch.length;
@@ -182,17 +187,17 @@ const updateWalletBalance = async (franchiseId, balance, apply) => {
       TableName: WALLET_TABLE,
       Key: {
         franchise_id: franchiseId,
-        store_id: DEFAULT_STORE_SCOPE
+        store_id: DEFAULT_STORE_SCOPE,
       },
       UpdateExpression: 'SET #balance = :balance, #updated_at = :updated_at',
       ExpressionAttributeNames: {
         '#balance': 'balance',
-        '#updated_at': 'updated_at'
+        '#updated_at': 'updated_at',
       },
       ExpressionAttributeValues: {
         ':balance': balance,
-        ':updated_at': new Date().toISOString()
-      }
+        ':updated_at': new Date().toISOString(),
+      },
     })
   );
 };
@@ -271,7 +276,7 @@ const run = async () => {
     totalZeroDeleted: options.apply ? totalZeroDeleted : 0,
     mode: options.mode,
     apply: options.apply,
-    removeZeroAmount: options.removeZeroAmount
+    removeZeroAmount: options.removeZeroAmount,
   });
 };
 

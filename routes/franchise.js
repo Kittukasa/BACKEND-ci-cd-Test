@@ -7,7 +7,7 @@ const { logger } = require('../config/logger');
 const {
   collectFranchiseStores,
   collectFranchiseStoreIds,
-  getStoreDailyStats
+  getStoreDailyStats,
 } = require('../services/franchiseService');
 const billingService = require('../services/billingService');
 const crypto = require('crypto');
@@ -17,7 +17,7 @@ const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const {
   sanitizeCustomerTypeConfig,
-  DEFAULT_CUSTOMER_TYPE_CONFIG
+  DEFAULT_CUSTOMER_TYPE_CONFIG,
 } = require('../utils/customerTypes');
 
 const router = express.Router();
@@ -58,7 +58,7 @@ const RAZORPAY_WEBHOOK_SECRET = process.env.RAZORPAY_WEBHOOK_SECRET || '';
 
 logger.info('Wallet payments table config', {
   table: WALLET_PAYMENTS_TABLE,
-  region: process.env.AWS_REGION || null
+  region: process.env.AWS_REGION || null,
 });
 
 const s3Client = new S3Client({ region: AWS_REGION });
@@ -66,12 +66,12 @@ const smartEbillUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: SMART_EBILL_MAX_FILE_SIZE,
-    files: SMART_EBILL_MAX_IMAGES
-  }
+    files: SMART_EBILL_MAX_IMAGES,
+  },
 });
 
 const smartEbillUploadMiddleware = (req, res, next) => {
-  smartEbillUpload.array('images', SMART_EBILL_MAX_IMAGES)(req, res, err => {
+  smartEbillUpload.array('images', SMART_EBILL_MAX_IMAGES)(req, res, (err) => {
     if (!err) {
       return next();
     }
@@ -99,27 +99,28 @@ const buildSmartEbillKey = (franchiseId, originalName = 'image.jpg') => {
   return `${SMART_EBILL_S3_PREFIX}${franchiseId}/${Date.now()}-${randomSegment}${extension}`;
 };
 
-const buildSmartEbillUrl = key => {
+const buildSmartEbillUrl = (key) => {
   if (!key) {
     return '';
   }
   return `https://${SMART_EBILL_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
 };
 
-const sanitizeSmartText = value => {
+const sanitizeSmartText = (value) => {
   if (typeof value !== 'string') {
     return '';
   }
   return value.trim().slice(0, 500);
 };
 
-const buildSmartEbillPayload = item => ({
+const buildSmartEbillPayload = (item) => ({
   smart_img_urls: Array.isArray(item?.smart_img_urls) ? item.smart_img_urls : [],
   smart_header_text: typeof item?.smart_header_text === 'string' ? item.smart_header_text : '',
   smart_footer_text: typeof item?.smart_footer_text === 'string' ? item.smart_footer_text : '',
   smart_address_text: typeof item?.smart_address_text === 'string' ? item.smart_address_text : '',
   smart_header_images: Array.isArray(item?.smart_header_images) ? item.smart_header_images : [],
-  smart_bottom_banner: typeof item?.smart_bottom_banner === 'string' ? item.smart_bottom_banner : null
+  smart_bottom_banner:
+    typeof item?.smart_bottom_banner === 'string' ? item.smart_bottom_banner : null,
 });
 
 const appendSmartImagesToStores = async (franchiseId, uploadedUrls = []) => {
@@ -130,7 +131,7 @@ const appendSmartImagesToStores = async (franchiseId, uploadedUrls = []) => {
 
   const now = new Date().toISOString();
   await Promise.all(
-    storeIds.map(storeId =>
+    storeIds.map((storeId) =>
       docClient.send(
         new UpdateCommand({
           TableName: STORE_CONFIG_TABLE,
@@ -140,8 +141,8 @@ const appendSmartImagesToStores = async (franchiseId, uploadedUrls = []) => {
           ExpressionAttributeValues: {
             ':empty': [],
             ':newUrls': uploadedUrls,
-            ':updated': now
-          }
+            ':updated': now,
+          },
         })
       )
     )
@@ -158,7 +159,7 @@ const applySmartEbillConfigToStores = async (franchiseId, config) => {
 
   const now = new Date().toISOString();
   await Promise.all(
-    storeIds.map(storeId =>
+    storeIds.map((storeId) =>
       docClient.send(
         new UpdateCommand({
           TableName: STORE_CONFIG_TABLE,
@@ -172,8 +173,8 @@ const applySmartEbillConfigToStores = async (franchiseId, config) => {
             ':addressText': config.smart_address_text,
             ':headerImages': config.smart_header_images,
             ':bottomBanner': config.smart_bottom_banner,
-            ':updated': now
-          }
+            ':updated': now,
+          },
         })
       )
     )
@@ -182,7 +183,7 @@ const applySmartEbillConfigToStores = async (franchiseId, config) => {
   return storeIds.length;
 };
 
-const loadFranchiseCampaignLimit = async franchiseId => {
+const loadFranchiseCampaignLimit = async (franchiseId) => {
   if (!FRANCHISES_TABLE || !franchiseId) {
     return null;
   }
@@ -190,7 +191,7 @@ const loadFranchiseCampaignLimit = async franchiseId => {
     const result = await docClient.send(
       new GetCommand({
         TableName: FRANCHISES_TABLE,
-        Key: { franchise_id: franchiseId }
+        Key: { franchise_id: franchiseId },
       })
     );
     const limit = Number(result?.Item?.campaign_free_messages);
@@ -201,14 +202,14 @@ const loadFranchiseCampaignLimit = async franchiseId => {
   }
 };
 
-const loadFranchiseSettings = async franchiseId => {
+const loadFranchiseSettings = async (franchiseId) => {
   if (!FRANCHISES_TABLE || !franchiseId) {
     return {
       wallet_enabled: true,
       trial_start: null,
       trial_end: null,
       trial_start_date: null,
-      trial_end_date: null
+      trial_end_date: null,
     };
   }
 
@@ -216,7 +217,7 @@ const loadFranchiseSettings = async franchiseId => {
     const result = await docClient.send(
       new GetCommand({
         TableName: FRANCHISES_TABLE,
-        Key: { franchise_id: franchiseId }
+        Key: { franchise_id: franchiseId },
       })
     );
     const item = result?.Item || {};
@@ -227,7 +228,7 @@ const loadFranchiseSettings = async franchiseId => {
       trial_start: trialStart,
       trial_end: trialEnd,
       trial_start_date: trialStart,
-      trial_end_date: trialEnd
+      trial_end_date: trialEnd,
     };
   } catch (error) {
     logger.warn('Failed to load franchise settings', { franchiseId, error: error.message });
@@ -236,7 +237,7 @@ const loadFranchiseSettings = async franchiseId => {
       trial_start: null,
       trial_end: null,
       trial_start_date: null,
-      trial_end_date: null
+      trial_end_date: null,
     };
   }
 };
@@ -251,8 +252,8 @@ const computeCampaignQuota = async (franchiseId, metrics = {}) => {
   return { campaignFreeMessages, campaignRemaining };
 };
 
-const buildFranchiseOverviewPayload = stores => {
-  const storeSummaries = stores.map(store => ({
+const buildFranchiseOverviewPayload = (stores) => {
+  const storeSummaries = stores.map((store) => ({
     store_id: store.store_id,
     franchise_id: store.franchise_id,
     store_name: store.store_name || store.brand_name || `Store ${store.store_id}`,
@@ -272,10 +273,10 @@ const buildFranchiseOverviewPayload = stores => {
     total_customers:
       Number(store.total_ebill_customers ?? store.total_customers ?? 0) +
       Number(store.total_anonymous_customers ?? 0),
-    franchise_access: store.franchise_access !== false
+    franchise_access: store.franchise_access !== false,
   }));
 
-  const aggregateMetric = key =>
+  const aggregateMetric = (key) =>
     storeSummaries.reduce((sum, store) => sum + (Number.isFinite(store[key]) ? store[key] : 0), 0);
 
   const totalRevenue = aggregateMetric('total_revenue');
@@ -296,12 +297,12 @@ const buildFranchiseOverviewPayload = stores => {
       totalEbillCustomers,
       totalAnonymousCustomers,
       totalCampaigns,
-      totalMessages
-    }
+      totalMessages,
+    },
   };
 };
 
-const toNumber = value => {
+const toNumber = (value) => {
   if (value === null || value === undefined || value === '') {
     return 0;
   }
@@ -320,7 +321,7 @@ const buildWalletPayload = (item = {}, franchiseId) => {
     reserved_balance: 0,
     pricing_ebill_invoice: 0,
     pricing_smart_ebill: 0,
-    pricing_campaign_message: 0
+    pricing_campaign_message: 0,
   };
   if (!item) {
     return payload;
@@ -421,15 +422,15 @@ const queryWalletEvents = async (franchiseId, range, customStart, customEnd) => 
       TableName: WALLET_EVENTS_TABLE,
       KeyConditionExpression: 'franchise_id = :fid',
       ExpressionAttributeValues: {
-        ':fid': franchiseId
+        ':fid': franchiseId,
       },
       ScanIndexForward: false,
-      ExclusiveStartKey: lastEvaluatedKey
+      ExclusiveStartKey: lastEvaluatedKey,
     };
     if (start && end) {
       params.KeyConditionExpression = 'franchise_id = :fid AND #event_key BETWEEN :start AND :end';
       params.ExpressionAttributeNames = {
-        '#event_key': WALLET_EVENTS_SORT_KEY
+        '#event_key': WALLET_EVENTS_SORT_KEY,
       };
       params.ExpressionAttributeValues[':start'] = `${start.toISOString()}#`;
       params.ExpressionAttributeValues[':end'] = `${end.toISOString()}#~`;
@@ -443,7 +444,7 @@ const queryWalletEvents = async (franchiseId, range, customStart, customEnd) => 
   return items;
 };
 
-const resolveClientLocation = req => {
+const resolveClientLocation = (req) => {
   const forwarded = req.headers['x-forwarded-for'];
   if (Array.isArray(forwarded) && forwarded.length > 0) {
     return forwarded[0];
@@ -454,17 +455,14 @@ const resolveClientLocation = req => {
   return req.ip || req.connection?.remoteAddress || 'unknown';
 };
 
-const toPaise = value => Math.round(toNumber(value) * 100);
+const toPaise = (value) => Math.round(toNumber(value) * 100);
 
 const verifyRazorpaySignature = ({ orderId, paymentId, signature }) => {
   if (!RAZORPAY_KEY_SECRET) {
     return false;
   }
   const payload = `${orderId}|${paymentId}`;
-  const expected = crypto
-    .createHmac('sha256', RAZORPAY_KEY_SECRET)
-    .update(payload)
-    .digest('hex');
+  const expected = crypto.createHmac('sha256', RAZORPAY_KEY_SECRET).update(payload).digest('hex');
   return expected === signature;
 };
 
@@ -493,20 +491,20 @@ const recordPaymentOrder = async ({ franchiseId, orderId, amount, currency }) =>
     currency,
     status: 'created',
     created_at: now,
-    updated_at: now
+    updated_at: now,
   };
   try {
     await docClient.send(
       new PutCommand({
         TableName: WALLET_PAYMENTS_TABLE,
-        Item: item
+        Item: item,
       })
     );
   } catch (error) {
     logger.error('Failed to record Razorpay order in wallet payments table', {
       franchiseId,
       orderId,
-      error: error.message
+      error: error.message,
     });
   }
 };
@@ -517,7 +515,7 @@ const markPaymentCapturedAndCredit = async ({
   paymentId,
   amount,
   currency,
-  payload
+  payload,
 }) => {
   if (!WALLET_PAYMENTS_TABLE) {
     return { credited: false, reason: 'payments_table_missing' };
@@ -529,7 +527,7 @@ const markPaymentCapturedAndCredit = async ({
         TableName: WALLET_PAYMENTS_TABLE,
         Key: {
           franchise_id: franchiseId,
-          payment_id: `order#${orderId}`
+          payment_id: `order#${orderId}`,
         },
         UpdateExpression:
           'SET #status = :status, #payment_id = :payment_id, #updated_at = :updated_at, #credited_at = :credited_at, #amount = :amount, #currency = :currency, #payload = :payload',
@@ -541,7 +539,7 @@ const markPaymentCapturedAndCredit = async ({
           '#credited_at': 'credited_at',
           '#amount': 'amount',
           '#currency': 'currency',
-          '#payload': 'gateway_payload'
+          '#payload': 'gateway_payload',
         },
         ExpressionAttributeValues: {
           ':status': 'paid',
@@ -550,8 +548,8 @@ const markPaymentCapturedAndCredit = async ({
           ':credited_at': now,
           ':amount': amount,
           ':currency': currency,
-          ':payload': payload || null
-        }
+          ':payload': payload || null,
+        },
       })
     );
   } catch (error) {
@@ -567,8 +565,8 @@ const markPaymentCapturedAndCredit = async ({
     sourceId: paymentId,
     reason: 'wallet_topup',
     metadata: {
-      order_id: orderId
-    }
+      order_id: orderId,
+    },
   });
 
   return { credited: !creditResult?.skipped, creditResult };
@@ -582,18 +580,19 @@ const appendStoreAuditEntry = async (storeId, req) => {
   const entry = {
     location: resolveClientLocation(req),
     time: new Date().toISOString(),
-    system: req.get('user-agent') || 'unknown'
+    system: req.get('user-agent') || 'unknown',
   };
 
   await docClient.send(
     new UpdateCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: { store_id: storeId },
-      UpdateExpression: 'SET audit_history = list_append(:entry, if_not_exists(audit_history, :empty))',
+      UpdateExpression:
+        'SET audit_history = list_append(:entry, if_not_exists(audit_history, :empty))',
       ExpressionAttributeValues: {
         ':entry': [entry],
-        ':empty': []
-      }
+        ':empty': [],
+      },
     })
   );
 };
@@ -618,7 +617,7 @@ const authenticateFranchiseSession = (req, res, next) => {
 
 router.get('/login/config', async (req, res) => {
   return res.json({
-    two_step_verification: TWO_STEP_VERIFICATION_ENABLED
+    two_step_verification: TWO_STEP_VERIFICATION_ENABLED,
   });
 });
 
@@ -636,17 +635,20 @@ router.post('/login/send-otp', async (req, res) => {
     if (!stores.length) {
       return res.status(404).json({
         error:
-          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
       });
     }
     const ownerStore =
-      stores.find(store => store.franchise_owner_phone) || stores.find(store => store.franchise_role === 'owner');
+      stores.find((store) => store.franchise_owner_phone) ||
+      stores.find((store) => store.franchise_role === 'owner');
     const ownerPhone = ownerStore?.franchise_owner_phone || stores[0].franchise_owner_phone || '';
     const digits = ownerPhone ? ownerPhone.toString().replace(/\D/g, '') : '';
     if (digits.length !== 10) {
       return res
         .status(400)
-        .json({ error: 'Franchise owner phone number is missing or invalid. Please contact support.' });
+        .json({
+          error: 'Franchise owner phone number is missing or invalid. Please contact support.',
+        });
     }
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpKey = createFranchiseOtpKey(stores[0].franchise_id || trimmedId);
@@ -660,26 +662,27 @@ router.post('/login/send-otp', async (req, res) => {
         message: FRANCHISE_LOGIN_SMS_TEMPLATE_ID,
         language: 'english',
         numbers: digits,
-        variables_values: `${otp}|Billbox Owner Login OTP`
+        variables_values: `${otp}|Billbox Owner Login OTP`,
       },
       {
         headers: {
-          authorization: SMS_TOKEN
-        }
+          authorization: SMS_TOKEN,
+        },
       }
     );
 
     return res.json({
       success: true,
-      masked_phone: maskPhoneNumber(digits)
+      masked_phone: maskPhoneNumber(digits),
     });
   } catch (error) {
-    logger.error('Failed to send franchise login OTP', { franchise_id: trimmedId, error: error.message });
+    logger.error('Failed to send franchise login OTP', {
+      franchise_id: trimmedId,
+      error: error.message,
+    });
     return res.status(500).json({ error: 'Unable to send login OTP right now.' });
   }
 });
-
-
 
 router.post('/login/password/send-otp', async (req, res) => {
   if (!TWO_STEP_VERIFICATION_ENABLED) {
@@ -704,12 +707,14 @@ router.post('/login/password/send-otp', async (req, res) => {
     if (!stores.length) {
       return res.status(404).json({
         error:
-          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
       });
     }
 
     const canonicalId = stores[0].franchise_id || trimmedId;
-    const storedPassword = stores[0].franchise_password ? String(stores[0].franchise_password).trim() : '';
+    const storedPassword = stores[0].franchise_password
+      ? String(stores[0].franchise_password).trim()
+      : '';
     if (!storedPassword) {
       return res
         .status(400)
@@ -721,13 +726,16 @@ router.post('/login/password/send-otp', async (req, res) => {
     }
 
     const ownerStore =
-      stores.find(store => store.franchise_owner_phone) || stores.find(store => store.franchise_role === 'owner');
+      stores.find((store) => store.franchise_owner_phone) ||
+      stores.find((store) => store.franchise_role === 'owner');
     const ownerPhone = ownerStore?.franchise_owner_phone || stores[0].franchise_owner_phone || '';
     const digits = ownerPhone ? ownerPhone.toString().replace(/\D/g, '') : '';
     if (digits.length !== 10) {
       return res
         .status(400)
-        .json({ error: 'Franchise owner phone number is missing or invalid. Please contact support.' });
+        .json({
+          error: 'Franchise owner phone number is missing or invalid. Please contact support.',
+        });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
@@ -742,21 +750,24 @@ router.post('/login/password/send-otp', async (req, res) => {
         message: FRANCHISE_LOGIN_SMS_TEMPLATE_ID,
         language: 'english',
         numbers: digits,
-        variables_values: `${otp}|Billbox Owner Login OTP`
+        variables_values: `${otp}|Billbox Owner Login OTP`,
       },
       {
         headers: {
-          authorization: SMS_TOKEN
-        }
+          authorization: SMS_TOKEN,
+        },
       }
     );
 
     return res.json({
       success: true,
-      masked_phone: maskPhoneNumber(digits)
+      masked_phone: maskPhoneNumber(digits),
     });
   } catch (error) {
-    logger.error('Failed to send franchise password login OTP', { franchise_id: trimmedId, error: error.message });
+    logger.error('Failed to send franchise password login OTP', {
+      franchise_id: trimmedId,
+      error: error.message,
+    });
     return res.status(500).json({ error: 'Unable to send login OTP right now.' });
   }
 });
@@ -780,7 +791,7 @@ router.post('/login/password', async (req, res) => {
     if (!stores.length) {
       return res.status(404).json({
         error:
-          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
       });
     }
 
@@ -798,7 +809,7 @@ router.post('/login/password', async (req, res) => {
     const franchiseSettings = await loadFranchiseSettings(storeSummaries[0].franchise_id);
     const sessionToken = FRANCHISE_JWT_SECRET
       ? jwt.sign({ franchise_id: storeSummaries[0].franchise_id }, FRANCHISE_JWT_SECRET, {
-          expiresIn: FRANCHISE_TOKEN_TTL
+          expiresIn: FRANCHISE_TOKEN_TTL,
         })
       : null;
 
@@ -816,10 +827,13 @@ router.post('/login/password', async (req, res) => {
       trial_start_date: franchiseSettings.trial_start_date,
       trial_end_date: franchiseSettings.trial_end_date,
       campaign_free_messages: campaignFreeMessages,
-      campaign_remaining_messages: campaignRemaining
+      campaign_remaining_messages: campaignRemaining,
     });
   } catch (error) {
-    logger.error('Franchise password login verify error', { franchise_id: trimmedId, error: error.message });
+    logger.error('Franchise password login verify error', {
+      franchise_id: trimmedId,
+      error: error.message,
+    });
     return res.status(500).json({ error: 'Unable to verify franchise. Please try again.' });
   }
 });
@@ -839,7 +853,7 @@ router.post('/login', async (req, res) => {
     if (!stores.length) {
       return res.status(404).json({
         error:
-          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
       });
     }
 
@@ -858,7 +872,7 @@ router.post('/login', async (req, res) => {
 
     const sessionToken = FRANCHISE_JWT_SECRET
       ? jwt.sign({ franchise_id: storeSummaries[0].franchise_id }, FRANCHISE_JWT_SECRET, {
-          expiresIn: FRANCHISE_TOKEN_TTL
+          expiresIn: FRANCHISE_TOKEN_TTL,
         })
       : null;
 
@@ -875,7 +889,7 @@ router.post('/login', async (req, res) => {
       trial_start: franchiseSettings.trial_start,
       trial_end: franchiseSettings.trial_end,
       trial_start_date: franchiseSettings.trial_start_date,
-      trial_end_date: franchiseSettings.trial_end_date
+      trial_end_date: franchiseSettings.trial_end_date,
     });
   } catch (error) {
     logger.error('Franchise login error', { error: error.message });
@@ -894,7 +908,7 @@ router.get('/session/overview', authenticateFranchiseSession, async (req, res) =
     if (!stores.length) {
       return res.status(404).json({
         error:
-          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
       });
     }
 
@@ -916,7 +930,7 @@ router.get('/session/overview', authenticateFranchiseSession, async (req, res) =
       trial_start: franchiseSettings.trial_start,
       trial_end: franchiseSettings.trial_end,
       trial_start_date: franchiseSettings.trial_start_date,
-      trial_end_date: franchiseSettings.trial_end_date
+      trial_end_date: franchiseSettings.trial_end_date,
     });
   } catch (error) {
     logger.error('Franchise session refresh error', { franchiseId, error: error.message });
@@ -939,8 +953,8 @@ router.get('/wallet', authenticateFranchiseSession, async (req, res) => {
         TableName: WALLET_TABLE,
         Key: {
           franchise_id: franchiseId,
-          store_id: DEFAULT_WALLET_STORE_ID
-        }
+          store_id: DEFAULT_WALLET_STORE_ID,
+        },
       })
     );
     const wallet = buildWalletPayload(result.Item || {}, franchiseId);
@@ -968,14 +982,14 @@ router.get('/wallet-events', authenticateFranchiseSession, async (req, res) => {
         TableName: WALLET_EVENTS_TABLE,
         KeyConditionExpression: 'franchise_id = :fid',
         ExpressionAttributeValues: {
-          ':fid': franchiseId
+          ':fid': franchiseId,
         },
         ScanIndexForward: false,
-        Limit: limit
+        Limit: limit,
       })
     );
 
-    const events = (result.Items || []).map(item => ({
+    const events = (result.Items || []).map((item) => ({
       franchise_id: item.franchise_id || franchiseId,
       event_key: item[WALLET_EVENTS_SORT_KEY] || null,
       type: item.type || null,
@@ -987,7 +1001,7 @@ router.get('/wallet-events', authenticateFranchiseSession, async (req, res) => {
       store_id: item.store_id || null,
       source_id: item.source_id || null,
       currency: item.currency || null,
-      timestamp: item.timestamp || null
+      timestamp: item.timestamp || null,
     }));
 
     return res.json({ success: true, events });
@@ -1042,7 +1056,7 @@ router.get('/wallet-events/summary', authenticateFranchiseSession, async (req, r
       smartEbillCount,
       smartEbillSpend,
       campaignCount,
-      campaignSpend
+      campaignSpend,
     });
   } catch (error) {
     logger.error('Failed to load franchise wallet summary', { franchiseId, error: error.message });
@@ -1076,11 +1090,14 @@ router.get('/wallet-events/range', authenticateFranchiseSession, async (req, res
       source_id: item.source_id || null,
       currency: item.currency || null,
       timestamp: item.timestamp || null,
-      category: item.category || item.template_category || item.sub_category || null
+      category: item.category || item.template_category || item.sub_category || null,
     }));
     return res.json({ success: true, range, events });
   } catch (error) {
-    logger.error('Failed to load franchise wallet events (range)', { franchiseId, error: error.message });
+    logger.error('Failed to load franchise wallet events (range)', {
+      franchiseId,
+      error: error.message,
+    });
     return res.status(500).json({ error: 'Unable to load wallet events.' });
   }
 });
@@ -1113,7 +1130,7 @@ router.get('/wallet-events/by-store', authenticateFranchiseSession, async (req, 
           smartEbillSpend: 0,
           campaignCount: 0,
           campaignSpend: 0,
-          totalSpend: 0
+          totalSpend: 0,
         });
       }
       const entry = storeMap.get(storeId);
@@ -1137,7 +1154,7 @@ router.get('/wallet-events/by-store', authenticateFranchiseSession, async (req, 
     return res.json({
       success: true,
       range,
-      stores: Array.from(storeMap.values())
+      stores: Array.from(storeMap.values()),
     });
   } catch (error) {
     logger.error('Failed to load franchise usage by store', { franchiseId, error: error.message });
@@ -1158,7 +1175,7 @@ router.get('/billing-profile', authenticateFranchiseSession, async (req, res) =>
     const result = await docClient.send(
       new GetCommand({
         TableName: FRANCHISES_TABLE,
-        Key: { franchise_id: franchiseId }
+        Key: { franchise_id: franchiseId },
       })
     );
     const item = result?.Item || {};
@@ -1180,8 +1197,8 @@ router.get('/billing-profile', authenticateFranchiseSession, async (req, res) =>
         plan_start_date: item.plan_start_date || item.plan_start || null,
         plan_end_date: item.plan_end_date || item.plan_end || null,
         plan_status: item.plan_status || item.subscription_status || null,
-        plan_amount_year: item.plan_amount_year || item.subscription_amount || null
-      }
+        plan_amount_year: item.plan_amount_year || item.subscription_amount || null,
+      },
     });
   } catch (error) {
     logger.error('Failed to load franchise billing profile', { franchiseId, error: error.message });
@@ -1202,7 +1219,7 @@ router.get('/profile', authenticateFranchiseSession, async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: FRANCHISES_TABLE,
-        Key: { franchise_id: franchiseId }
+        Key: { franchise_id: franchiseId },
       })
     );
     const item = result?.Item || {};
@@ -1227,8 +1244,8 @@ router.get('/profile', authenticateFranchiseSession, async (req, res) => {
         pan_number: item.pan_number || '',
         gst_certificate_url: item.gst_certificate_url || '',
         gst_certificate_key: item.gst_certificate_key || '',
-        ...buildSmartEbillPayload(item)
-      }
+        ...buildSmartEbillPayload(item),
+      },
     });
   } catch (error) {
     logger.error('Failed to load franchise profile', { franchiseId, error: error.message });
@@ -1249,83 +1266,88 @@ router.get('/smart-ebill', authenticateFranchiseSession, async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: FRANCHISES_TABLE,
-        Key: { franchise_id: franchiseId }
+        Key: { franchise_id: franchiseId },
       })
     );
     return res.json({
       success: true,
-      ...buildSmartEbillPayload(result?.Item || {})
+      ...buildSmartEbillPayload(result?.Item || {}),
     });
   } catch (error) {
     logger.error('Failed to load franchise Smart E-bill settings', {
       franchiseId,
-      error: error.message
+      error: error.message,
     });
     return res.status(500).json({ error: 'Unable to load Smart E-bill settings.' });
   }
 });
 
-router.post('/smart-ebill/upload', authenticateFranchiseSession, smartEbillUploadMiddleware, async (req, res) => {
-  const franchiseId = req.franchiseSession?.franchise_id;
-  if (!franchiseId) {
-    return res.status(401).json({ error: 'Franchise session is invalid.' });
-  }
-  if (!FRANCHISES_TABLE || !STORE_CONFIG_TABLE || !SMART_EBILL_S3_BUCKET) {
-    return res.status(500).json({ error: 'Smart E-bill storage is not configured.' });
-  }
-
-  const files = Array.isArray(req.files) ? req.files : [];
-  if (!files.length) {
-    return res.status(400).json({ error: 'Select at least one image to upload.' });
-  }
-
-  try {
-    const uploadedUrls = [];
-    for (const file of files) {
-      const key = buildSmartEbillKey(franchiseId, file?.originalname);
-      await s3Client.send(
-        new PutObjectCommand({
-          Bucket: SMART_EBILL_S3_BUCKET,
-          Key: key,
-          Body: file.buffer,
-          ContentType: file?.mimetype || 'application/octet-stream'
-        })
-      );
-      uploadedUrls.push(buildSmartEbillUrl(key));
+router.post(
+  '/smart-ebill/upload',
+  authenticateFranchiseSession,
+  smartEbillUploadMiddleware,
+  async (req, res) => {
+    const franchiseId = req.franchiseSession?.franchise_id;
+    if (!franchiseId) {
+      return res.status(401).json({ error: 'Franchise session is invalid.' });
+    }
+    if (!FRANCHISES_TABLE || !STORE_CONFIG_TABLE || !SMART_EBILL_S3_BUCKET) {
+      return res.status(500).json({ error: 'Smart E-bill storage is not configured.' });
     }
 
-    const now = new Date().toISOString();
-    const result = await docClient.send(
-      new UpdateCommand({
-        TableName: FRANCHISES_TABLE,
-        Key: { franchise_id: franchiseId },
-        UpdateExpression:
-          'SET smart_img_urls = list_append(if_not_exists(smart_img_urls, :empty), :newUrls), updated_at = :updated',
-        ExpressionAttributeValues: {
-          ':empty': [],
-          ':newUrls': uploadedUrls,
-          ':updated': now
-        },
-        ReturnValues: 'ALL_NEW'
-      })
-    );
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (!files.length) {
+      return res.status(400).json({ error: 'Select at least one image to upload.' });
+    }
 
-    const propagatedStores = await appendSmartImagesToStores(franchiseId, uploadedUrls);
-    return res.json({
-      success: true,
-      images: Array.isArray(result.Attributes?.smart_img_urls)
-        ? result.Attributes.smart_img_urls
-        : uploadedUrls,
-      updated_store_count: propagatedStores
-    });
-  } catch (error) {
-    logger.error('Failed to upload franchise Smart E-bill assets', {
-      franchiseId,
-      error: error.message
-    });
-    return res.status(500).json({ error: 'Unable to upload Smart E-bill assets.' });
+    try {
+      const uploadedUrls = [];
+      for (const file of files) {
+        const key = buildSmartEbillKey(franchiseId, file?.originalname);
+        await s3Client.send(
+          new PutObjectCommand({
+            Bucket: SMART_EBILL_S3_BUCKET,
+            Key: key,
+            Body: file.buffer,
+            ContentType: file?.mimetype || 'application/octet-stream',
+          })
+        );
+        uploadedUrls.push(buildSmartEbillUrl(key));
+      }
+
+      const now = new Date().toISOString();
+      const result = await docClient.send(
+        new UpdateCommand({
+          TableName: FRANCHISES_TABLE,
+          Key: { franchise_id: franchiseId },
+          UpdateExpression:
+            'SET smart_img_urls = list_append(if_not_exists(smart_img_urls, :empty), :newUrls), updated_at = :updated',
+          ExpressionAttributeValues: {
+            ':empty': [],
+            ':newUrls': uploadedUrls,
+            ':updated': now,
+          },
+          ReturnValues: 'ALL_NEW',
+        })
+      );
+
+      const propagatedStores = await appendSmartImagesToStores(franchiseId, uploadedUrls);
+      return res.json({
+        success: true,
+        images: Array.isArray(result.Attributes?.smart_img_urls)
+          ? result.Attributes.smart_img_urls
+          : uploadedUrls,
+        updated_store_count: propagatedStores,
+      });
+    } catch (error) {
+      logger.error('Failed to upload franchise Smart E-bill assets', {
+        franchiseId,
+        error: error.message,
+      });
+      return res.status(500).json({ error: 'Unable to upload Smart E-bill assets.' });
+    }
   }
-});
+);
 
 router.patch('/smart-ebill', authenticateFranchiseSession, async (req, res) => {
   const franchiseId = req.franchiseSession?.franchise_id;
@@ -1337,10 +1359,14 @@ router.patch('/smart-ebill', authenticateFranchiseSession, async (req, res) => {
   }
 
   const images = Array.isArray(req.body?.images)
-    ? req.body.images.map(value => (typeof value === 'string' ? value.trim() : '')).filter(Boolean)
+    ? req.body.images
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter(Boolean)
     : [];
   const headerImages = Array.isArray(req.body?.headerImages)
-    ? req.body.headerImages.map(value => (typeof value === 'string' ? value.trim() : '')).filter(Boolean)
+    ? req.body.headerImages
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
+        .filter(Boolean)
     : [];
   const bottomBanner =
     typeof req.body?.bottomBanner === 'string' && req.body.bottomBanner.trim()
@@ -1352,7 +1378,7 @@ router.patch('/smart-ebill', authenticateFranchiseSession, async (req, res) => {
     smart_footer_text: sanitizeSmartText(req.body?.footerText || ''),
     smart_address_text: sanitizeSmartText(req.body?.addressText || ''),
     smart_header_images: headerImages,
-    smart_bottom_banner: bottomBanner
+    smart_bottom_banner: bottomBanner,
   };
 
   try {
@@ -1369,9 +1395,9 @@ router.patch('/smart-ebill', authenticateFranchiseSession, async (req, res) => {
           ':addressText': smartConfig.smart_address_text,
           ':headerImages': smartConfig.smart_header_images,
           ':bottomBanner': smartConfig.smart_bottom_banner,
-          ':updated': new Date().toISOString()
+          ':updated': new Date().toISOString(),
         },
-        ReturnValues: 'ALL_NEW'
+        ReturnValues: 'ALL_NEW',
       })
     );
 
@@ -1379,12 +1405,12 @@ router.patch('/smart-ebill', authenticateFranchiseSession, async (req, res) => {
     return res.json({
       success: true,
       ...buildSmartEbillPayload(result.Attributes || smartConfig),
-      updated_store_count: propagatedStores
+      updated_store_count: propagatedStores,
     });
   } catch (error) {
     logger.error('Failed to update franchise Smart E-bill settings', {
       franchiseId,
-      error: error.message
+      error: error.message,
     });
     return res.status(500).json({ error: 'Unable to update Smart E-bill settings.' });
   }
@@ -1416,7 +1442,7 @@ router.put('/profile', authenticateFranchiseSession, async (req, res) => {
     gst_number,
     pan_number,
     gst_certificate_url,
-    gst_certificate_key
+    gst_certificate_key,
   } = req.body || {};
 
   try {
@@ -1431,7 +1457,7 @@ router.put('/profile', authenticateFranchiseSession, async (req, res) => {
           'gst_registered = :gstreg, gst_number = :gst, gst_certificate_url = :gstUrl, gst_certificate_key = :gstKey, ' +
           'pan_number = :pan, updated_at = :updatedAt',
         ExpressionAttributeNames: {
-          '#state': 'state'
+          '#state': 'state',
         },
         ExpressionAttributeValues: {
           ':legal': legal_business_name || '',
@@ -1451,8 +1477,8 @@ router.put('/profile', authenticateFranchiseSession, async (req, res) => {
           ':pan': pan_number || '',
           ':gstUrl': gst_certificate_url || '',
           ':gstKey': gst_certificate_key || '',
-          ':updatedAt': new Date().toISOString()
-        }
+          ':updatedAt': new Date().toISOString(),
+        },
       })
     );
     return res.json({ success: true });
@@ -1494,7 +1520,7 @@ router.get('/profile/gst-upload-url', authenticateFranchiseSession, async (req, 
       new PutObjectCommand({
         Bucket: FRANCHISE_DOCS_BUCKET,
         Key: key,
-        ContentType: contentType
+        ContentType: contentType,
       }),
       { expiresIn: 60 * 5 }
     );
@@ -1523,8 +1549,8 @@ router.get('/payments/history', authenticateFranchiseSession, async (req, res) =
         TableName: WALLET_PAYMENTS_TABLE,
         KeyConditionExpression: 'franchise_id = :fid',
         ExpressionAttributeValues: {
-          ':fid': franchiseId
-        }
+          ':fid': franchiseId,
+        },
       })
     );
     const items = Array.isArray(result.Items) ? result.Items : [];
@@ -1535,7 +1561,7 @@ router.get('/payments/history', authenticateFranchiseSession, async (req, res) =
     });
     return res.json({
       success: true,
-      payments: items.slice(0, limit)
+      payments: items.slice(0, limit),
     });
   } catch (error) {
     logger.error('Failed to load wallet payments history', { franchiseId, error: error.message });
@@ -1576,7 +1602,7 @@ router.get('/stores/:storeId/audit-history', async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
@@ -1591,7 +1617,7 @@ router.get('/stores/:storeId/audit-history', async (req, res) => {
     return res.json({
       success: true,
       store_id: storeId,
-      audit_history: auditHistory
+      audit_history: auditHistory,
     });
   } catch (error) {
     logger.error('Failed to fetch audit history', { storeId, error: error.message });
@@ -1617,7 +1643,7 @@ router.delete('/stores/:storeId/audit-history', async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
@@ -1632,7 +1658,7 @@ router.delete('/stores/:storeId/audit-history', async (req, res) => {
       new UpdateCommand({
         TableName: STORE_CONFIG_TABLE,
         Key: { store_id: storeId },
-        UpdateExpression: 'REMOVE audit_history'
+        UpdateExpression: 'REMOVE audit_history',
       })
     );
 
@@ -1661,7 +1687,7 @@ router.post('/stores/:storeId/logout-all', async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
@@ -1681,8 +1707,8 @@ router.post('/stores/:storeId/logout-all', async (req, res) => {
         UpdateExpression: 'SET session_revoked_at = :ts, session_version = :ver',
         ExpressionAttributeValues: {
           ':ts': timestamp,
-          ':ver': sessionVersion
-        }
+          ':ver': sessionVersion,
+        },
       })
     );
 
@@ -1690,7 +1716,7 @@ router.post('/stores/:storeId/logout-all', async (req, res) => {
       success: true,
       store_id: storeId,
       session_revoked_at: timestamp,
-      session_version: sessionVersion
+      session_version: sessionVersion,
     });
   } catch (error) {
     logger.error('Failed to revoke store sessions', { storeId, error: error.message });
@@ -1720,15 +1746,15 @@ router.post('/payments/create-order', authenticateFranchiseSession, async (req, 
         currency: DEFAULT_WALLET_CURRENCY,
         payment_capture: 1,
         notes: {
-          franchise_id: franchiseId
+          franchise_id: franchiseId,
         },
-        receipt: `fr_${franchiseId}_${Date.now()}`
+        receipt: `fr_${franchiseId}_${Date.now()}`,
       },
       {
         auth: {
           username: RAZORPAY_KEY_ID,
-          password: RAZORPAY_KEY_SECRET
-        }
+          password: RAZORPAY_KEY_SECRET,
+        },
       }
     );
 
@@ -1741,7 +1767,7 @@ router.post('/payments/create-order', authenticateFranchiseSession, async (req, 
       franchiseId,
       orderId: order.id,
       amount,
-      currency: order.currency || DEFAULT_WALLET_CURRENCY
+      currency: order.currency || DEFAULT_WALLET_CURRENCY,
     });
 
     return res.json({
@@ -1749,7 +1775,7 @@ router.post('/payments/create-order', authenticateFranchiseSession, async (req, 
       order_id: order.id,
       amount: order.amount,
       currency: order.currency || DEFAULT_WALLET_CURRENCY,
-      key_id: RAZORPAY_KEY_ID
+      key_id: RAZORPAY_KEY_ID,
     });
   } catch (error) {
     const status = error?.response?.status || 500;
@@ -1758,7 +1784,7 @@ router.post('/payments/create-order', authenticateFranchiseSession, async (req, 
       franchiseId,
       status,
       error: error.message,
-      response: responseData
+      response: responseData,
     });
     const message =
       responseData?.error?.description ||
@@ -1770,8 +1796,11 @@ router.post('/payments/create-order', authenticateFranchiseSession, async (req, 
 
 router.post('/payments/verify', authenticateFranchiseSession, async (req, res) => {
   const franchiseId = req.franchiseSession?.franchise_id;
-  const { razorpay_order_id: orderId, razorpay_payment_id: paymentId, razorpay_signature: signature } =
-    req.body || {};
+  const {
+    razorpay_order_id: orderId,
+    razorpay_payment_id: paymentId,
+    razorpay_signature: signature,
+  } = req.body || {};
 
   if (!franchiseId) {
     return res.status(400).json({ error: 'franchise_id is required.' });
@@ -1783,7 +1812,7 @@ router.post('/payments/verify', authenticateFranchiseSession, async (req, res) =
   const isValid = verifyRazorpaySignature({
     orderId,
     paymentId,
-    signature
+    signature,
   });
 
   if (!isValid) {
@@ -1791,15 +1820,12 @@ router.post('/payments/verify', authenticateFranchiseSession, async (req, res) =
   }
 
   try {
-    const paymentResponse = await axios.get(
-      `https://api.razorpay.com/v1/payments/${paymentId}`,
-      {
-        auth: {
-          username: RAZORPAY_KEY_ID,
-          password: RAZORPAY_KEY_SECRET
-        }
-      }
-    );
+    const paymentResponse = await axios.get(`https://api.razorpay.com/v1/payments/${paymentId}`, {
+      auth: {
+        username: RAZORPAY_KEY_ID,
+        password: RAZORPAY_KEY_SECRET,
+      },
+    });
 
     const payment = paymentResponse.data || {};
     if (payment.status !== 'captured') {
@@ -1813,13 +1839,13 @@ router.post('/payments/verify', authenticateFranchiseSession, async (req, res) =
       paymentId,
       amount,
       currency: payment.currency || DEFAULT_WALLET_CURRENCY,
-      payload: payment
+      payload: payment,
     });
 
     return res.json({
       success: true,
       credited: result.credited,
-      balance_updated: !result.creditResult?.skipped
+      balance_updated: !result.creditResult?.skipped,
     });
   } catch (error) {
     logger.error('Failed to verify Razorpay payment', { franchiseId, error: error.message });
@@ -1857,7 +1883,7 @@ router.post('/payments/webhook', async (req, res) => {
       paymentId,
       amount,
       currency: payload.currency || DEFAULT_WALLET_CURRENCY,
-      payload
+      payload,
     });
     return res.json({ received: true });
   } catch (error) {
@@ -1884,7 +1910,7 @@ router.post('/stores/:storeId/sso-token', authenticateFranchiseSession, async (r
     const result = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
@@ -1904,7 +1930,7 @@ router.post('/stores/:storeId/sso-token', authenticateFranchiseSession, async (r
       franchise_id: store.franchise_id || null,
       store_id: store.store_id,
       session_version: sessionVersion,
-      iat: Math.floor(Date.now() / 1000)
+      iat: Math.floor(Date.now() / 1000),
     };
 
     const storeToken = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '3d' });
@@ -1931,7 +1957,7 @@ router.post('/stores/:storeId/sso-token', authenticateFranchiseSession, async (r
       webhook_config: store.webhook_config || null,
       trial_started: store.trial_started ?? store.trail_started ?? null,
       trial_period: store.trial_period ?? null,
-      customer_type_config: customerTypeConfig
+      customer_type_config: customerTypeConfig,
     });
   } catch (error) {
     logger.error('Failed to create SSO token', { store_id: storeId, error: error.message });
@@ -1960,7 +1986,7 @@ router.post('/stores/:storeId/access', async (req, res) => {
     const storeResult = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
@@ -1977,8 +2003,8 @@ router.post('/stores/:storeId/access', async (req, res) => {
         Key: { store_id: storeId },
         UpdateExpression: 'SET franchise_access = :allowed',
         ExpressionAttributeValues: {
-          ':allowed': allowed
-        }
+          ':allowed': allowed,
+        },
       })
     );
 
@@ -2001,13 +2027,13 @@ router.get('/:franchiseId', async (req, res) => {
     return res.json({
       franchise_id: match.franchise_id,
       brand_name: match.brand_name || '',
-      business_type: match.business_type || ''
+      business_type: match.business_type || '',
     });
   }
 
   return res.status(404).json({
     error:
-      'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+      'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
   });
 });
 
@@ -2023,7 +2049,7 @@ router.get('/:franchiseId/customer-types', async (req, res) => {
       return res.status(404).json({ error: 'Franchise not found.' });
     }
 
-    const storeWithConfig = stores.find(store => store.customer_type_config) || stores[0];
+    const storeWithConfig = stores.find((store) => store.customer_type_config) || stores[0];
     const config = sanitizeCustomerTypeConfig(
       storeWithConfig.customer_type_config || DEFAULT_CUSTOMER_TYPE_CONFIG
     );
@@ -2031,7 +2057,7 @@ router.get('/:franchiseId/customer-types', async (req, res) => {
       franchise_id: franchiseId,
       customer_type_config: config,
       updated_at: storeWithConfig.customer_type_config_updated_at || null,
-      store_count: stores.length
+      store_count: stores.length,
     });
   } catch (error) {
     logger.error('Failed to fetch customer type config', { franchiseId, error: error.message });
@@ -2068,7 +2094,7 @@ router.post('/:franchiseId/customer-types', async (req, res) => {
     const timestamp = new Date().toISOString();
 
     await Promise.all(
-      stores.map(store =>
+      stores.map((store) =>
         docClient.send(
           new UpdateCommand({
             TableName: STORE_CONFIG_TABLE,
@@ -2077,8 +2103,8 @@ router.post('/:franchiseId/customer-types', async (req, res) => {
               'SET customer_type_config = :config, customer_type_config_updated_at = :updatedAt',
             ExpressionAttributeValues: {
               ':config': normalizedConfig,
-              ':updatedAt': timestamp
-            }
+              ':updatedAt': timestamp,
+            },
           })
         )
       )
@@ -2089,7 +2115,7 @@ router.post('/:franchiseId/customer-types', async (req, res) => {
       franchise_id: franchiseId,
       customer_type_config: normalizedConfig,
       updated_at: timestamp,
-      store_count: stores.length
+      store_count: stores.length,
     });
   } catch (error) {
     logger.error('Failed to update customer type config', { franchiseId, error: error.message });
@@ -2112,7 +2138,7 @@ router.get('/stores/:storeId/customer-types', async (req, res) => {
     const storeResult = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
@@ -2131,7 +2157,7 @@ router.get('/stores/:storeId/customer-types', async (req, res) => {
       store_id: storeId,
       franchise_id: storeResult.Item.franchise_id,
       customer_type_config: config,
-      updated_at: storeResult.Item.customer_type_config_updated_at || null
+      updated_at: storeResult.Item.customer_type_config_updated_at || null,
     });
   } catch (error) {
     logger.error('Failed to fetch store customer type config', { storeId, error: error.message });
@@ -2160,7 +2186,7 @@ router.post('/stores/:storeId/customer-types', async (req, res) => {
     const storeResult = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
@@ -2182,8 +2208,8 @@ router.post('/stores/:storeId/customer-types', async (req, res) => {
           'SET customer_type_config = :config, customer_type_config_updated_at = :updatedAt',
         ExpressionAttributeValues: {
           ':config': normalizedConfig,
-          ':updatedAt': timestamp
-        }
+          ':updatedAt': timestamp,
+        },
       })
     );
 
@@ -2191,15 +2217,13 @@ router.post('/stores/:storeId/customer-types', async (req, res) => {
       success: true,
       store_id: storeId,
       customer_type_config: normalizedConfig,
-      updated_at: timestamp
+      updated_at: timestamp,
     });
   } catch (error) {
     logger.error('Failed to update store customer type config', { storeId, error: error.message });
     return res.status(500).json({ error: 'Unable to update customer type configuration.' });
   }
 });
-
-
 
 router.post('/login/password-only', async (req, res) => {
   if (TWO_STEP_VERIFICATION_ENABLED) {
@@ -2222,12 +2246,14 @@ router.post('/login/password-only', async (req, res) => {
     if (!stores.length) {
       return res.status(404).json({
         error:
-          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
       });
     }
 
     const canonicalId = stores[0].franchise_id || trimmedId;
-    const storedPassword = stores[0].franchise_password ? String(stores[0].franchise_password).trim() : '';
+    const storedPassword = stores[0].franchise_password
+      ? String(stores[0].franchise_password).trim()
+      : '';
     if (!storedPassword) {
       return res
         .status(400)
@@ -2247,7 +2273,7 @@ router.post('/login/password-only', async (req, res) => {
 
     const sessionToken = FRANCHISE_JWT_SECRET
       ? jwt.sign({ franchise_id: storeSummaries[0].franchise_id }, FRANCHISE_JWT_SECRET, {
-          expiresIn: FRANCHISE_TOKEN_TTL
+          expiresIn: FRANCHISE_TOKEN_TTL,
         })
       : null;
 
@@ -2265,10 +2291,13 @@ router.post('/login/password-only', async (req, res) => {
       trial_start: franchiseSettings.trial_start,
       trial_end: franchiseSettings.trial_end,
       trial_start_date: franchiseSettings.trial_start_date,
-      trial_end_date: franchiseSettings.trial_end_date
+      trial_end_date: franchiseSettings.trial_end_date,
     });
   } catch (error) {
-    logger.error('Franchise password-only login error', { franchise_id: trimmedId, error: error.message });
+    logger.error('Franchise password-only login error', {
+      franchise_id: trimmedId,
+      error: error.message,
+    });
     return res.status(500).json({ error: 'Unable to verify franchise. Please try again.' });
   }
 });
@@ -2288,7 +2317,7 @@ const saveFranchiseOtp = (key, otp) => {
   }
   franchiseOtpStore.set(key, {
     otp,
-    expiresAt: Date.now() + FRANCHISE_LOGIN_OTP_TTL_MS
+    expiresAt: Date.now() + FRANCHISE_LOGIN_OTP_TTL_MS,
   });
 };
 
@@ -2311,7 +2340,7 @@ const consumeFranchiseOtp = (key, otp) => {
   return verified;
 };
 
-const maskPhoneNumber = phone => {
+const maskPhoneNumber = (phone) => {
   if (!phone) {
     return '';
   }

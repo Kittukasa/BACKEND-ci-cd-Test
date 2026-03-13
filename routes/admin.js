@@ -23,7 +23,7 @@ const WALLET_FIELDS = [
   'low_balance_threshold',
   'pricing_ebill_invoice',
   'pricing_smart_ebill',
-  'pricing_campaign_message'
+  'pricing_campaign_message',
 ];
 const LEAD_SIGNUPS_TABLE = process.env.LEAD_SIGNUPS_TABLE || process.env.LEAD_SIGNUPS;
 
@@ -34,12 +34,12 @@ const ADMIN_STORE_FIELDS = [
   'template_name',
   'template_language',
   'brand_name',
-  'campaign_messages_count'
+  'campaign_messages_count',
 ];
 
 const ADMIN_STORE_FIELD_ALIASES = {
   smart_ebill: 'smartE-bill',
-  trail_started: 'trial_started'
+  trail_started: 'trial_started',
 };
 
 const ADMIN_STORE_DISPLAY_FIELDS = [
@@ -67,7 +67,7 @@ const ADMIN_STORE_DISPLAY_FIELDS = [
   'template_name',
   'template_language',
   'brand_name',
-  'campaign_messages_count'
+  'campaign_messages_count',
 ];
 
 const ADMIN_FRANCHISE_FIELDS = [
@@ -89,7 +89,7 @@ const ADMIN_FRANCHISE_FIELDS = [
   'trial_end_date',
   'plan_start_date',
   'plan_end_date',
-  'global_smart_ebill_enabled'
+  'global_smart_ebill_enabled',
 ];
 
 const extractRangeInputs = (query = {}) => {
@@ -111,8 +111,7 @@ const deriveHealthStatus = (metrics = {}) => {
 
 const normalizeAdminFieldKey = (key) => ADMIN_STORE_FIELD_ALIASES[key] || key;
 
-const resolveStoreEmail = (item = {}) =>
-  item.contact_email || item.email || null;
+const resolveStoreEmail = (item = {}) => item.contact_email || item.email || null;
 
 const resolveStoreMobile = (item = {}) =>
   item.mobile_number || item.contact_phone || item.vendor_phone || null;
@@ -132,7 +131,7 @@ const buildWalletDefaults = () => ({
   low_balance_threshold: 0,
   pricing_ebill_invoice: 0,
   pricing_smart_ebill: 0,
-  pricing_campaign_message: 0
+  pricing_campaign_message: 0,
 });
 
 const buildWalletPayload = (item = {}, franchiseId, storeId) => {
@@ -140,7 +139,7 @@ const buildWalletPayload = (item = {}, franchiseId, storeId) => {
   const payload = {
     franchise_id: franchiseId,
     store_id: storeId,
-    ...defaults
+    ...defaults,
   };
   WALLET_FIELDS.forEach((field) => {
     if (!Object.prototype.hasOwnProperty.call(item, field)) {
@@ -164,7 +163,7 @@ const scanAll = async (params) => {
     const result = await docClient.send(
       new ScanCommand({
         ...params,
-        ExclusiveStartKey: lastEvaluatedKey
+        ExclusiveStartKey: lastEvaluatedKey,
       })
     );
     if (result.Items) {
@@ -191,8 +190,9 @@ const buildAdminStorePayload = (item = {}, storeId) => {
       return;
     }
     if (field === 'smartE-bill') {
-      payload[field] =
-        Object.prototype.hasOwnProperty.call(item, field) ? item[field] : item.smart_ebill ?? null;
+      payload[field] = Object.prototype.hasOwnProperty.call(item, field)
+        ? item[field]
+        : (item.smart_ebill ?? null);
       return;
     }
     payload[field] = Object.prototype.hasOwnProperty.call(item, field) ? item[field] : null;
@@ -225,7 +225,7 @@ const buildFranchiseUpdateExpression = (payload = {}) => {
   return {
     UpdateExpression: `SET ${updates.join(', ')}`,
     ExpressionAttributeNames: names,
-    ExpressionAttributeValues: values
+    ExpressionAttributeValues: values,
   };
 };
 
@@ -238,14 +238,14 @@ const updateFranchiseStoresSmartEbill = async (franchiseId, enabled) => {
     TableName: STORE_CONFIG_TABLE,
     FilterExpression: 'franchise_id = :franchiseId',
     ExpressionAttributeValues: {
-      ':franchiseId': franchiseId
+      ':franchiseId': franchiseId,
     },
-    ProjectionExpression: 'store_id'
+    ProjectionExpression: 'store_id',
   });
 
   const storeIds = stores
-    .map(item => item?.store_id)
-    .filter(value => typeof value === 'string' && value.trim().length > 0);
+    .map((item) => item?.store_id)
+    .filter((value) => typeof value === 'string' && value.trim().length > 0);
 
   if (!storeIds.length) {
     return 0;
@@ -254,7 +254,7 @@ const updateFranchiseStoresSmartEbill = async (franchiseId, enabled) => {
   const updatedAt = new Date().toISOString();
   const nextValue = enabled ? 'yes' : 'no';
   await Promise.all(
-    storeIds.map(storeId =>
+    storeIds.map((storeId) =>
       docClient.send(
         new UpdateCommand({
           TableName: STORE_CONFIG_TABLE,
@@ -262,12 +262,12 @@ const updateFranchiseStoresSmartEbill = async (franchiseId, enabled) => {
           UpdateExpression: 'SET #smart_dash = :enabled, #updated_at = :updated',
           ExpressionAttributeNames: {
             '#smart_dash': 'smartE-bill',
-            '#updated_at': 'updated_at'
+            '#updated_at': 'updated_at',
           },
           ExpressionAttributeValues: {
             ':enabled': nextValue,
-            ':updated': updatedAt
-          }
+            ':updated': updatedAt,
+          },
         })
       )
     )
@@ -344,15 +344,15 @@ const queryWalletEvents = async (franchiseId, range, customStart, customEnd) => 
       TableName: WALLET_EVENTS_TABLE,
       KeyConditionExpression: 'franchise_id = :fid',
       ExpressionAttributeValues: {
-        ':fid': franchiseId
+        ':fid': franchiseId,
       },
       ScanIndexForward: false,
-      ExclusiveStartKey: lastEvaluatedKey
+      ExclusiveStartKey: lastEvaluatedKey,
     };
     if (start && end) {
       params.KeyConditionExpression = 'franchise_id = :fid AND #event_key BETWEEN :start AND :end';
       params.ExpressionAttributeNames = {
-        '#event_key': WALLET_EVENTS_SORT_KEY
+        '#event_key': WALLET_EVENTS_SORT_KEY,
       };
       params.ExpressionAttributeValues[':start'] = `${start.toISOString()}#`;
       params.ExpressionAttributeValues[':end'] = `${end.toISOString()}#~`;
@@ -413,19 +413,24 @@ router.get('/stores-analytics', async (req, res) => {
   try {
     const storeMetadata = await analyticsService.getStoreMetadata();
     const storeIds = Object.keys(storeMetadata || {});
-    const [
-      { dateRange, metricsByStore, invoices, allInvoices },
-      campaignStats
-    ] = await Promise.all([
-      analyticsService.computeInvoiceMetricsOptimized(rangeParam, customStart, customEnd, storeIds),
-      analyticsService.computeCampaignStatsByStore(rangeParam, customStart, customEnd)
-    ]);
+    const [{ dateRange, metricsByStore, invoices, allInvoices }, campaignStats] = await Promise.all(
+      [
+        analyticsService.computeInvoiceMetricsOptimized(
+          rangeParam,
+          customStart,
+          customEnd,
+          storeIds
+        ),
+        analyticsService.computeCampaignStatsByStore(rangeParam, customStart, customEnd),
+      ]
+    );
     const { campaignCounts, messageCounts } = campaignStats || {
       campaignCounts: {},
-      messageCounts: {}
+      messageCounts: {},
     };
 
-    const sourceInvoices = Array.isArray(allInvoices) && allInvoices.length ? allInvoices : invoices;
+    const sourceInvoices =
+      Array.isArray(allInvoices) && allInvoices.length ? allInvoices : invoices;
     const lastActiveMap = {};
     sourceInvoices.forEach((invoice) => {
       if (!invoice) {
@@ -495,7 +500,9 @@ router.get('/stores-analytics', async (req, res) => {
         eBillCustomers: metrics.eBillCustomers || 0,
         campaignsSent: campaignCounts[storeId] || 0,
         messagesSent: messageCounts[storeId] || 0,
-        lastActiveAt: lastActiveMap[storeId] ? new Date(lastActiveMap[storeId]).toISOString() : null,
+        lastActiveAt: lastActiveMap[storeId]
+          ? new Date(lastActiveMap[storeId]).toISOString()
+          : null,
         healthStatus: deriveHealthStatus(metrics),
         debug: {
           vendorAllTimeInvoices: vendorStyleInvoiceCount,
@@ -583,7 +590,7 @@ router.get('/franchises/:franchiseId', async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: FRANCHISES_TABLE,
-        Key: { franchise_id: franchiseId }
+        Key: { franchise_id: franchiseId },
       })
     );
     const item = result.Item || { franchise_id: franchiseId };
@@ -621,7 +628,7 @@ router.patch('/franchises/:franchiseId', async (req, res) => {
         TableName: FRANCHISES_TABLE,
         Key: { franchise_id: franchiseId },
         ...expression,
-        ReturnValues: 'ALL_NEW'
+        ReturnValues: 'ALL_NEW',
       })
     );
 
@@ -635,7 +642,7 @@ router.patch('/franchises/:franchiseId', async (req, res) => {
 
     return res.json({
       franchise: result.Attributes || { franchise_id: franchiseId },
-      updated_store_count: updatedStoreCount
+      updated_store_count: updatedStoreCount,
     });
   } catch (error) {
     logger.error('Failed to update franchise details', { franchiseId, error: error.message });
@@ -656,20 +663,20 @@ router.get('/stores/:storeId', async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
     if (!result.Item) {
       return res.json({
         success: true,
-        store: buildAdminStorePayload({}, storeId)
+        store: buildAdminStorePayload({}, storeId),
       });
     }
 
     return res.json({
       success: true,
-      store: buildAdminStorePayload(result.Item, storeId)
+      store: buildAdminStorePayload(result.Item, storeId),
     });
   } catch (error) {
     logger.error('Failed to load admin store details', { storeId, error: error.message });
@@ -690,25 +697,25 @@ router.get('/store', async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: String(storeId) }
+        Key: { store_id: String(storeId) },
       })
     );
 
     if (!result.Item) {
       return res.json({
         success: true,
-        store: buildAdminStorePayload({}, String(storeId))
+        store: buildAdminStorePayload({}, String(storeId)),
       });
     }
 
     return res.json({
       success: true,
-      store: buildAdminStorePayload(result.Item, String(storeId))
+      store: buildAdminStorePayload(result.Item, String(storeId)),
     });
   } catch (error) {
     logger.error('Failed to load admin store details', {
       storeId: String(storeId),
-      error: error.message
+      error: error.message,
     });
     return res.status(500).json({ error: 'Unable to load store details' });
   }
@@ -749,7 +756,7 @@ router.patch('/stores/:storeId', async (req, res) => {
   const expressionParts = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {
-    ':updated': new Date().toISOString()
+    ':updated': new Date().toISOString(),
   };
 
   updateKeys.forEach((key, index) => {
@@ -767,7 +774,7 @@ router.patch('/stores/:storeId', async (req, res) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId }
+        Key: { store_id: storeId },
       })
     );
 
@@ -778,14 +785,14 @@ router.patch('/stores/:storeId', async (req, res) => {
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: expressionAttributeNames,
         ExpressionAttributeValues: expressionAttributeValues,
-        ReturnValues: 'ALL_NEW'
+        ReturnValues: 'ALL_NEW',
       })
     );
 
     const merged = updated.Attributes || result.Item || {};
     return res.json({
       success: true,
-      store: buildAdminStorePayload(merged, storeId)
+      store: buildAdminStorePayload(merged, storeId),
     });
   } catch (error) {
     logger.error('Failed to update admin store details', { storeId, error: error.message });
@@ -794,10 +801,12 @@ router.patch('/stores/:storeId', async (req, res) => {
 });
 
 router.get('/wallets', async (req, res) => {
-  const franchiseId = typeof req.query?.franchiseId === 'string' ? req.query.franchiseId.trim() : '';
-  const storeId = typeof req.query?.storeId === 'string' && req.query.storeId.trim()
-    ? req.query.storeId.trim()
-    : DEFAULT_WALLET_STORE_ID;
+  const franchiseId =
+    typeof req.query?.franchiseId === 'string' ? req.query.franchiseId.trim() : '';
+  const storeId =
+    typeof req.query?.storeId === 'string' && req.query.storeId.trim()
+      ? req.query.storeId.trim()
+      : DEFAULT_WALLET_STORE_ID;
 
   if (!franchiseId) {
     return res.status(400).json({ error: 'franchiseId is required' });
@@ -812,8 +821,8 @@ router.get('/wallets', async (req, res) => {
         TableName: WALLET_TABLE,
         Key: {
           franchise_id: franchiseId,
-          store_id: storeId
-        }
+          store_id: storeId,
+        },
       })
     );
 
@@ -848,8 +857,8 @@ router.get('/wallets/summary', async (req, res) => {
       TableName: WALLET_TABLE,
       FilterExpression: 'store_id = :storeScope',
       ExpressionAttributeValues: {
-        ':storeScope': DEFAULT_WALLET_STORE_ID
-      }
+        ':storeScope': DEFAULT_WALLET_STORE_ID,
+      },
     });
 
     const walletMap = new Map();
@@ -863,11 +872,12 @@ router.get('/wallets/summary', async (req, res) => {
 
     const franchiseIds = new Set([
       ...Array.from(franchiseNameMap.keys()),
-      ...Array.from(walletMap.keys())
+      ...Array.from(walletMap.keys()),
     ]);
 
     const summaries = Array.from(franchiseIds).map((franchiseId) => {
-      const wallet = walletMap.get(franchiseId) || buildWalletPayload({}, franchiseId, DEFAULT_WALLET_STORE_ID);
+      const wallet =
+        walletMap.get(franchiseId) || buildWalletPayload({}, franchiseId, DEFAULT_WALLET_STORE_ID);
       return {
         franchise_id: franchiseId,
         franchise_name: franchiseNameMap.get(franchiseId) || null,
@@ -876,7 +886,7 @@ router.get('/wallets/summary', async (req, res) => {
         low_balance_threshold: wallet.low_balance_threshold,
         pricing_ebill_invoice: wallet.pricing_ebill_invoice,
         pricing_smart_ebill: wallet.pricing_smart_ebill,
-        pricing_campaign_message: wallet.pricing_campaign_message
+        pricing_campaign_message: wallet.pricing_campaign_message,
       };
     });
 
@@ -895,9 +905,10 @@ router.get('/wallets/summary', async (req, res) => {
 
 router.patch('/wallets', async (req, res) => {
   const franchiseId = typeof req.body?.franchiseId === 'string' ? req.body.franchiseId.trim() : '';
-  const storeId = typeof req.body?.storeId === 'string' && req.body.storeId.trim()
-    ? req.body.storeId.trim()
-    : DEFAULT_WALLET_STORE_ID;
+  const storeId =
+    typeof req.body?.storeId === 'string' && req.body.storeId.trim()
+      ? req.body.storeId.trim()
+      : DEFAULT_WALLET_STORE_ID;
 
   if (!franchiseId) {
     return res.status(400).json({ error: 'franchiseId is required' });
@@ -938,7 +949,7 @@ router.patch('/wallets', async (req, res) => {
   const expressionParts = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {
-    ':updated': new Date().toISOString()
+    ':updated': new Date().toISOString(),
   };
 
   updateKeys.forEach((key, index) => {
@@ -958,12 +969,12 @@ router.patch('/wallets', async (req, res) => {
         TableName: WALLET_TABLE,
         Key: {
           franchise_id: franchiseId,
-          store_id: storeId
+          store_id: storeId,
         },
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: expressionAttributeNames,
         ExpressionAttributeValues: expressionAttributeValues,
-        ReturnValues: 'ALL_NEW'
+        ReturnValues: 'ALL_NEW',
       })
     );
 
@@ -976,7 +987,8 @@ router.patch('/wallets', async (req, res) => {
 });
 
 router.get('/wallet-events', async (req, res) => {
-  const franchiseId = typeof req.query?.franchiseId === 'string' ? req.query.franchiseId.trim() : '';
+  const franchiseId =
+    typeof req.query?.franchiseId === 'string' ? req.query.franchiseId.trim() : '';
   const limit = Math.min(200, Math.max(1, parseInt(req.query?.limit || '50', 10)));
 
   if (!franchiseId) {
@@ -992,10 +1004,10 @@ router.get('/wallet-events', async (req, res) => {
         TableName: WALLET_EVENTS_TABLE,
         KeyConditionExpression: 'franchise_id = :fid',
         ExpressionAttributeValues: {
-          ':fid': franchiseId
+          ':fid': franchiseId,
         },
         ScanIndexForward: false,
-        Limit: limit
+        Limit: limit,
       })
     );
 
@@ -1012,7 +1024,7 @@ router.get('/wallet-events', async (req, res) => {
       source_id: item.source_id || null,
       currency: item.currency || null,
       timestamp: item.timestamp || null,
-      threshold: item.threshold ?? null
+      threshold: item.threshold ?? null,
     }));
 
     return res.json({ success: true, events });
@@ -1023,7 +1035,8 @@ router.get('/wallet-events', async (req, res) => {
 });
 
 router.get('/wallet-events/summary', async (req, res) => {
-  const franchiseId = typeof req.query?.franchiseId === 'string' ? req.query.franchiseId.trim() : '';
+  const franchiseId =
+    typeof req.query?.franchiseId === 'string' ? req.query.franchiseId.trim() : '';
   const range = typeof req.query?.range === 'string' ? req.query.range.trim() : 'this_month';
 
   if (!franchiseId) {
@@ -1067,7 +1080,7 @@ router.get('/wallet-events/summary', async (req, res) => {
       smartEbillCount,
       smartEbillSpend,
       campaignCount,
-      campaignSpend
+      campaignSpend,
     });
   } catch (error) {
     logger.error('Failed to load wallet event summary', { franchiseId, error: error.message });
@@ -1076,7 +1089,8 @@ router.get('/wallet-events/summary', async (req, res) => {
 });
 
 router.get('/wallet-events/by-store', async (req, res) => {
-  const franchiseId = typeof req.query?.franchiseId === 'string' ? req.query.franchiseId.trim() : '';
+  const franchiseId =
+    typeof req.query?.franchiseId === 'string' ? req.query.franchiseId.trim() : '';
   const range = typeof req.query?.range === 'string' ? req.query.range.trim() : 'this_month';
 
   if (!franchiseId) {
@@ -1103,7 +1117,7 @@ router.get('/wallet-events/by-store', async (req, res) => {
           smartEbillSpend: 0,
           campaignCount: 0,
           campaignSpend: 0,
-          totalSpend: 0
+          totalSpend: 0,
         });
       }
       const entry = storeMap.get(storeId);
@@ -1127,7 +1141,7 @@ router.get('/wallet-events/by-store', async (req, res) => {
     return res.json({
       success: true,
       range,
-      stores: Array.from(storeMap.values())
+      stores: Array.from(storeMap.values()),
     });
   } catch (error) {
     logger.error('Failed to load wallet usage by store', { franchiseId, error: error.message });
@@ -1142,7 +1156,7 @@ router.get('/leads', async (req, res) => {
   try {
     const result = await docClient.send(
       new ScanCommand({
-        TableName: LEAD_SIGNUPS_TABLE
+        TableName: LEAD_SIGNUPS_TABLE,
       })
     );
     const items = Array.isArray(result.Items) ? result.Items : [];
@@ -1153,7 +1167,7 @@ router.get('/leads', async (req, res) => {
     });
     return res.json({
       success: true,
-      leads: items
+      leads: items,
     });
   } catch (error) {
     logger.error('Failed to load leads', { error: error.message });
@@ -1194,7 +1208,7 @@ router.patch('/leads/:leadId', async (req, res) => {
   const expressionParts = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {
-    ':updated': new Date().toISOString()
+    ':updated': new Date().toISOString(),
   };
 
   Object.keys(updates).forEach((key, index) => {
@@ -1213,17 +1227,17 @@ router.patch('/leads/:leadId', async (req, res) => {
         TableName: LEAD_SIGNUPS_TABLE,
         Key: {
           lead_id: leadId,
-          created_at: createdAt
+          created_at: createdAt,
         },
         UpdateExpression: `SET ${expressionParts.join(', ')}`,
         ExpressionAttributeNames: expressionAttributeNames,
         ExpressionAttributeValues: expressionAttributeValues,
-        ReturnValues: 'ALL_NEW'
+        ReturnValues: 'ALL_NEW',
       })
     );
     return res.json({
       success: true,
-      lead: updated.Attributes || null
+      lead: updated.Attributes || null,
     });
   } catch (error) {
     logger.error('Failed to update lead', { leadId, error: error.message });

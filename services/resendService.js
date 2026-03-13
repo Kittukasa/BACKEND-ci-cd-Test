@@ -1,5 +1,12 @@
 const { docClient } = require('../config/dynamodb');
-const { PutCommand, GetCommand, UpdateCommand, QueryCommand, ScanCommand, BatchWriteCommand } = require('@aws-sdk/lib-dynamodb');
+const {
+  PutCommand,
+  GetCommand,
+  UpdateCommand,
+  QueryCommand,
+  ScanCommand,
+  BatchWriteCommand,
+} = require('@aws-sdk/lib-dynamodb');
 const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 
@@ -22,11 +29,11 @@ const RESEND_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const RESEND_IMAGE_CONTENT_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
 const s3Client = new S3Client({
-  region: AWS_REGION
+  region: AWS_REGION,
 });
 
 const buildTimestampKey = (date = new Date()) => {
-  const pad = value => value.toString().padStart(2, '0');
+  const pad = (value) => value.toString().padStart(2, '0');
   return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
 };
 
@@ -36,10 +43,8 @@ const sanitizeFilename = (filename = 'upload') => {
   return sanitized || 'upload';
 };
 
-const isValidResendImageKey = key =>
-  typeof key === 'string' &&
-  key.startsWith(RESEND_IMAGE_PREFIX) &&
-  !key.includes('..');
+const isValidResendImageKey = (key) =>
+  typeof key === 'string' && key.startsWith(RESEND_IMAGE_PREFIX) && !key.includes('..');
 
 const ensureTable = (tableName, label) => {
   if (!tableName) {
@@ -47,7 +52,7 @@ const ensureTable = (tableName, label) => {
   }
 };
 
-const delayOptionToSeconds = delayOption => {
+const delayOptionToSeconds = (delayOption) => {
   switch (delayOption) {
     case '2m':
       return 2 * 60;
@@ -90,36 +95,36 @@ const createPresignedUpload = async ({ campaignId, filename, contentType, conten
   const command = new PutObjectCommand({
     Bucket: RESEND_IMAGE_BUCKET,
     Key: key,
-    ContentType: contentType || 'application/octet-stream'
+    ContentType: contentType || 'application/octet-stream',
   });
   const uploadUrl = await getSignedUrl(s3Client, command, { expiresIn: 300 });
   return { uploadUrl, s3Key: key, contentType };
 };
 
-const createPresignedGet = async key => {
+const createPresignedGet = async (key) => {
   if (!key) {
     return null;
   }
   const command = new GetObjectCommand({
     Bucket: RESEND_IMAGE_BUCKET,
-    Key: key
+    Key: key,
   });
   return getSignedUrl(s3Client, command, { expiresIn: 900 });
 };
 
-const putCampaignMetadata = async metadata => {
+const putCampaignMetadata = async (metadata) => {
   ensureTable(CAMPAIGN_METADATA_TABLE, 'Campaign metadata');
   if (!metadata?.campaign_id) {
     throw new Error('campaign_id is required');
   }
   const item = {
     ...metadata,
-    updated_at: new Date().toISOString()
+    updated_at: new Date().toISOString(),
   };
   await docClient.send(
     new PutCommand({
       TableName: CAMPAIGN_METADATA_TABLE,
-      Item: item
+      Item: item,
     })
   );
 };
@@ -132,7 +137,7 @@ const updateCampaignMetadata = async (campaignId, updates = {}) => {
   }
   const expressionParts = [];
   const expressionAttributeValues = {
-    ':updatedAt': new Date().toISOString()
+    ':updatedAt': new Date().toISOString(),
   };
   const expressionAttributeNames = {};
   updateKeys.forEach((key, index) => {
@@ -151,12 +156,12 @@ const updateCampaignMetadata = async (campaignId, updates = {}) => {
       Key: { campaign_id: campaignId },
       UpdateExpression: `SET ${expressionParts.join(', ')}`,
       ExpressionAttributeNames: expressionAttributeNames,
-      ExpressionAttributeValues: expressionAttributeValues
+      ExpressionAttributeValues: expressionAttributeValues,
     })
   );
 };
 
-const getCampaignMetadata = async campaignId => {
+const getCampaignMetadata = async (campaignId) => {
   ensureTable(CAMPAIGN_METADATA_TABLE, 'Campaign metadata');
   if (!campaignId) {
     return null;
@@ -164,13 +169,13 @@ const getCampaignMetadata = async campaignId => {
   const result = await docClient.send(
     new GetCommand({
       TableName: CAMPAIGN_METADATA_TABLE,
-      Key: { campaign_id: campaignId }
+      Key: { campaign_id: campaignId },
     })
   );
   return result.Item || null;
 };
 
-const listResendAttemptsByCampaignId = async campaignId => {
+const listResendAttemptsByCampaignId = async (campaignId) => {
   ensureTable(RESEND_ATTEMPTS_TABLE, 'Resend attempts');
   if (!campaignId) {
     return [];
@@ -184,7 +189,7 @@ const listResendAttemptsByCampaignId = async campaignId => {
           KeyConditionExpression: '#campaign_id = :campaignId',
           ExpressionAttributeNames: { '#campaign_id': 'campaign_id' },
           ExpressionAttributeValues: { ':campaignId': campaignId },
-          ScanIndexForward: false
+          ScanIndexForward: false,
         })
       );
       return result.Items || [];
@@ -200,7 +205,7 @@ const listResendAttemptsByCampaignId = async campaignId => {
       TableName: RESEND_ATTEMPTS_TABLE,
       FilterExpression: '#campaign_id = :campaignId',
       ExpressionAttributeNames: { '#campaign_id': 'campaign_id' },
-      ExpressionAttributeValues: { ':campaignId': campaignId }
+      ExpressionAttributeValues: { ':campaignId': campaignId },
     })
   );
   return scanResult.Items || [];
@@ -219,11 +224,11 @@ const findAttemptByClientRequest = async ({ campaignId, clientRequestId }) => {
           IndexName: RESEND_ATTEMPTS_CLIENT_INDEX,
           KeyConditionExpression: '#client_request_id = :requestId',
           ExpressionAttributeNames: { '#client_request_id': 'client_request_id' },
-          ExpressionAttributeValues: { ':requestId': clientRequestId }
+          ExpressionAttributeValues: { ':requestId': clientRequestId },
         })
       );
       const matched = Array.isArray(result.Items) ? result.Items : [];
-      return matched.find(item => !campaignId || item.campaign_id === campaignId) || null;
+      return matched.find((item) => !campaignId || item.campaign_id === campaignId) || null;
     } catch (error) {
       if (error?.name !== 'ValidationException') {
         throw error;
@@ -235,20 +240,20 @@ const findAttemptByClientRequest = async ({ campaignId, clientRequestId }) => {
       TableName: RESEND_ATTEMPTS_TABLE,
       FilterExpression: '#client_request_id = :requestId',
       ExpressionAttributeNames: { '#client_request_id': 'client_request_id' },
-      ExpressionAttributeValues: { ':requestId': clientRequestId }
+      ExpressionAttributeValues: { ':requestId': clientRequestId },
     })
   );
   const items = scanResult.Items || [];
-  return items.find(item => !campaignId || item.campaign_id === campaignId) || null;
+  return items.find((item) => !campaignId || item.campaign_id === campaignId) || null;
 };
 
-const createResendAttempt = async attempt => {
+const createResendAttempt = async (attempt) => {
   ensureTable(RESEND_ATTEMPTS_TABLE, 'Resend attempts');
   await docClient.send(
     new PutCommand({
       TableName: RESEND_ATTEMPTS_TABLE,
       Item: attempt,
-      ConditionExpression: 'attribute_not_exists(resend_attempt_id)'
+      ConditionExpression: 'attribute_not_exists(resend_attempt_id)',
     })
   );
 };
@@ -257,7 +262,7 @@ const updateResendAttemptStatus = async ({
   resendAttemptId,
   status,
   updates = {},
-  expectedStatus = null
+  expectedStatus = null,
 }) => {
   ensureTable(RESEND_ATTEMPTS_TABLE, 'Resend attempts');
   if (!resendAttemptId || !status) {
@@ -266,11 +271,11 @@ const updateResendAttemptStatus = async ({
   const expressionParts = ['#status = :status', '#updated_at = :updated'];
   const expressionAttributeNames = {
     '#status': 'status',
-    '#updated_at': 'updated_at'
+    '#updated_at': 'updated_at',
   };
   const expressionAttributeValues = {
     ':status': status,
-    ':updated': new Date().toISOString()
+    ':updated': new Date().toISOString(),
   };
 
   Object.entries(updates).forEach(([key, value], index) => {
@@ -286,7 +291,7 @@ const updateResendAttemptStatus = async ({
     Key: { resend_attempt_id: resendAttemptId },
     UpdateExpression: `SET ${expressionParts.join(', ')}`,
     ExpressionAttributeNames: expressionAttributeNames,
-    ExpressionAttributeValues: expressionAttributeValues
+    ExpressionAttributeValues: expressionAttributeValues,
   };
 
   if (expectedStatus) {
@@ -297,7 +302,7 @@ const updateResendAttemptStatus = async ({
   await docClient.send(new UpdateCommand(params));
 };
 
-const batchWriteRecipients = async recipients => {
+const batchWriteRecipients = async (recipients) => {
   if (!RESEND_RECIPIENTS_TABLE || recipients.length === 0) {
     return;
   }
@@ -308,13 +313,13 @@ const batchWriteRecipients = async recipients => {
 
   for (const chunk of chunks) {
     const requestItems = {
-      [RESEND_RECIPIENTS_TABLE]: chunk.map(item => ({
-        PutRequest: { Item: item }
-      }))
+      [RESEND_RECIPIENTS_TABLE]: chunk.map((item) => ({
+        PutRequest: { Item: item },
+      })),
     };
     await docClient.send(
       new BatchWriteCommand({
-        RequestItems: requestItems
+        RequestItems: requestItems,
       })
     );
   }
@@ -347,16 +352,16 @@ const updateResendRecipient = async ({ resendAttemptId, phone, updates = {} }) =
       TableName: RESEND_RECIPIENTS_TABLE,
       Key: {
         resend_attempt_id: resendAttemptId,
-        phone
+        phone,
       },
       UpdateExpression: `SET ${expressionParts.join(', ')}`,
       ExpressionAttributeNames: expressionAttributeNames,
-      ExpressionAttributeValues: expressionAttributeValues
+      ExpressionAttributeValues: expressionAttributeValues,
     })
   );
 };
 
-const listResendRecipientsByAttempt = async resendAttemptId => {
+const listResendRecipientsByAttempt = async (resendAttemptId) => {
   if (!RESEND_RECIPIENTS_TABLE || !resendAttemptId) {
     return [];
   }
@@ -365,17 +370,17 @@ const listResendRecipientsByAttempt = async resendAttemptId => {
       TableName: RESEND_RECIPIENTS_TABLE,
       KeyConditionExpression: '#resend_attempt_id = :resendAttemptId',
       ExpressionAttributeNames: {
-        '#resend_attempt_id': 'resend_attempt_id'
+        '#resend_attempt_id': 'resend_attempt_id',
       },
       ExpressionAttributeValues: {
-        ':resendAttemptId': resendAttemptId
-      }
+        ':resendAttemptId': resendAttemptId,
+      },
     })
   );
   return result.Items || [];
 };
 
-const findResendRecipientByMessageId = async messageId => {
+const findResendRecipientByMessageId = async (messageId) => {
   if (!RESEND_RECIPIENTS_TABLE || !messageId) {
     return null;
   }
@@ -384,12 +389,12 @@ const findResendRecipientByMessageId = async messageId => {
       TableName: RESEND_RECIPIENTS_TABLE,
       FilterExpression: '#message_id = :messageId',
       ExpressionAttributeNames: {
-        '#message_id': 'message_id'
+        '#message_id': 'message_id',
       },
       ExpressionAttributeValues: {
-        ':messageId': messageId
+        ':messageId': messageId,
       },
-      Limit: 1
+      Limit: 1,
     })
   );
   return result.Items && result.Items.length > 0 ? result.Items[0] : null;
@@ -411,13 +416,13 @@ const updateResendRecipientStatusByMessageId = async ({ messageId, status, error
       status: normalizedStatus,
       error_reason: error?.details || error?.title || null,
       error_code: error?.code ?? null,
-      last_status_update: new Date().toISOString()
-    }
+      last_status_update: new Date().toISOString(),
+    },
   });
   return true;
 };
 
-const listDueAttempts = async nowIso => {
+const listDueAttempts = async (nowIso) => {
   ensureTable(RESEND_ATTEMPTS_TABLE, 'Resend attempts');
   const now = nowIso || new Date().toISOString();
   const result = await docClient.send(
@@ -426,12 +431,12 @@ const listDueAttempts = async nowIso => {
       FilterExpression: '#status = :scheduled AND #scheduled_at <= :now',
       ExpressionAttributeNames: {
         '#status': 'status',
-        '#scheduled_at': 'scheduled_at'
+        '#scheduled_at': 'scheduled_at',
       },
       ExpressionAttributeValues: {
         ':scheduled': 'SCHEDULED',
-        ':now': now
-      }
+        ':now': now,
+      },
     })
   );
   return result.Items || [];
@@ -457,5 +462,5 @@ module.exports = {
   listResendRecipientsByAttempt,
   findResendRecipientByMessageId,
   updateResendRecipientStatusByMessageId,
-  listDueAttempts
+  listDueAttempts,
 };

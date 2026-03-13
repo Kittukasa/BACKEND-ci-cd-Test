@@ -11,7 +11,7 @@ const WALLET_TABLE = process.env.FRANCHISE_WALLET_TABLE || 'Test-Franchise_Walle
 const FRANCHISES_TABLE = process.env.FRANCHISES_TABLE;
 const DEFAULT_WALLET_STORE_ID = 'ALL';
 
-const toNumber = value => {
+const toNumber = (value) => {
   if (value === null || value === undefined || value === '') {
     return 0;
   }
@@ -34,11 +34,11 @@ router.get('/stores', async (req, res) => {
 router.get('/invoices', async (req, res) => {
   try {
     const { storeId } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const invoices = await analyticsService.getInvoices(storeId);
     res.json(invoices);
   } catch (error) {
@@ -112,7 +112,9 @@ router.post('/invoices/include', async (req, res) => {
       return res.status(400).json({ error: 'Invoice details are required to include.' });
     }
     const restoreFromDaily = Boolean(invoicePayload?.is_daily_end_report);
-    await analyticsService.includeInvoice(storeId, fingerprint, invoicePayload, { restoreFromDaily });
+    await analyticsService.includeInvoice(storeId, fingerprint, invoicePayload, {
+      restoreFromDaily,
+    });
     return res.json({ success: true, fingerprint });
   } catch (error) {
     console.error('Error including invoice', { error: error.message });
@@ -144,7 +146,9 @@ router.post('/invoices/daily-end-report', async (req, res) => {
     return res.json({ success: true, fingerprint });
   } catch (error) {
     console.error('Error sending invoice to daily end report', { error: error.message });
-    return res.status(500).json({ error: 'Unable to send invoice to Daily End Reports right now.' });
+    return res
+      .status(500)
+      .json({ error: 'Unable to send invoice to Daily End Reports right now.' });
   }
 });
 
@@ -160,7 +164,7 @@ router.get('/wallet-balance', async (req, res) => {
       return res.json({
         balance: 0,
         currency: 'INR',
-        low_balance_threshold: 0
+        low_balance_threshold: 0,
       });
     }
     const response = await docClient.send(
@@ -168,8 +172,8 @@ router.get('/wallet-balance', async (req, res) => {
         TableName: WALLET_TABLE,
         Key: {
           franchise_id: franchiseId,
-          store_id: DEFAULT_WALLET_STORE_ID
-        }
+          store_id: DEFAULT_WALLET_STORE_ID,
+        },
       })
     );
     const wallet = response.Item || {};
@@ -179,7 +183,7 @@ router.get('/wallet-balance', async (req, res) => {
         new GetCommand({
           TableName: FRANCHISES_TABLE,
           Key: { franchise_id: franchiseId },
-          ProjectionExpression: 'wallet_enabled'
+          ProjectionExpression: 'wallet_enabled',
         })
       );
       if (franchiseResult.Item && franchiseResult.Item.wallet_enabled === false) {
@@ -190,7 +194,7 @@ router.get('/wallet-balance', async (req, res) => {
       balance: toNumber(wallet.balance),
       currency: wallet.currency || 'INR',
       low_balance_threshold: toNumber(wallet.low_balance_threshold),
-      wallet_enabled: walletEnabled
+      wallet_enabled: walletEnabled,
     });
   } catch (error) {
     console.error('Error fetching wallet balance:', error);
@@ -202,11 +206,11 @@ router.get('/wallet-balance', async (req, res) => {
 router.get('/kpis', async (req, res) => {
   try {
     const { storeId, from, to } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const kpis = await analyticsService.getKPIs(storeId, from, to);
     res.json(kpis);
   } catch (error) {
@@ -219,13 +223,13 @@ router.get('/kpis', async (req, res) => {
 router.get('/customers', async (req, res) => {
   try {
     const { storeId } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const invoices = await analyticsService.getInvoices(storeId, { includeExcluded: false });
-    
+
     // Function to normalize phone numbers
     const normalizePhone = (phone) => {
       if (!phone || typeof phone !== 'string') return null;
@@ -235,11 +239,11 @@ router.get('/customers', async (req, res) => {
       if (cleaned.length < 10) return null;
       return cleaned;
     };
-    
+
     // Extract unique customers with normalized phone numbers
     const customerMap = new Map();
-    
-    invoices.forEach(invoice => {
+
+    invoices.forEach((invoice) => {
       const normalizedPhone = normalizePhone(invoice.customer_phone);
       const timestamp = invoice.processed_timestamp_ist || invoice.invoice_date;
 
@@ -248,7 +252,7 @@ router.get('/customers', async (req, res) => {
           customerMap.set(normalizedPhone, {
             phone: normalizedPhone,
             name: invoice.customer_name || `Customer ${normalizedPhone}`,
-            lastTransaction: timestamp
+            lastTransaction: timestamp,
           });
         } else {
           // Update with latest transaction if newer
@@ -262,11 +266,11 @@ router.get('/customers', async (req, res) => {
         }
       }
     });
-    
-    const customers = Array.from(customerMap.values()).sort((a, b) => 
-      new Date(b.lastTransaction).getTime() - new Date(a.lastTransaction).getTime()
+
+    const customers = Array.from(customerMap.values()).sort(
+      (a, b) => new Date(b.lastTransaction).getTime() - new Date(a.lastTransaction).getTime()
     );
-    
+
     console.log(`Found ${customers.length} unique customers for store ${storeId}`);
     res.json(customers);
   } catch (error) {
@@ -279,45 +283,45 @@ router.get('/customers', async (req, res) => {
 router.get('/visits-over-time', async (req, res) => {
   try {
     const { storeId } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const invoices = await analyticsService.getInvoices(storeId, { includeExcluded: false });
-    
+
     // Comprehensive date parser for multiple formats
     const parseInvoiceDate = (dateString) => {
       if (!dateString) return null;
-      
+
       // Format: DD-MM-YYYY HH:mm:ss (e.g., "27-07-2025 00:00:00")
       let match = dateString.match(/^(\d{1,2})-(\d{1,2})-(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
       if (match) {
         const [, day, month, year, hour, minute, second] = match;
         return new Date(year, month - 1, day, hour, minute, second);
       }
-      
+
       // Format: DD-MM-YYYY (e.g., "13-05-2025")
       match = dateString.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
       if (match) {
         const [, day, month, year] = match;
         return new Date(year, month - 1, day);
       }
-      
+
       // Format: DD/MM/YYYY HH:mm:ss (e.g., "13/01/2025 13:54:50")
       match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
       if (match) {
         const [, day, month, year, hour, minute, second] = match;
         return new Date(year, month - 1, day, hour, minute, second);
       }
-      
+
       // Format: DD/MM/YYYY (e.g., "13/01/2025")
       match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (match) {
         const [, day, month, year] = match;
         return new Date(year, month - 1, day);
       }
-      
+
       // Format: DD/MM/YY (e.g., "27/03/20")
       match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
       if (match) {
@@ -325,7 +329,7 @@ router.get('/visits-over-time', async (req, res) => {
         const fullYear = parseInt(year) + 2000; // Assume 20xx
         return new Date(fullYear, month - 1, day);
       }
-      
+
       // Format: DDMMYYYY (e.g., "04709720250" - seems malformed, try to extract)
       match = dateString.match(/^(\d{2})(\d{2})(\d{4})/);
       if (match && dateString.length >= 8) {
@@ -334,43 +338,43 @@ router.get('/visits-over-time', async (req, res) => {
           return new Date(year, month - 1, day);
         }
       }
-      
+
       // Fallback to standard Date parsing
       const fallbackDate = new Date(dateString);
       if (!isNaN(fallbackDate.getTime())) {
         return fallbackDate;
       }
-      
+
       console.warn(`Could not parse date: ${dateString}`);
       return null;
     };
-    
+
     // Group invoices by month
     const monthlyVisits = {};
-    
-    invoices.forEach(invoice => {
+
+    invoices.forEach((invoice) => {
       const date = parseInvoiceDate(invoice.invoice_date);
       if (!date) {
         return; // Skip invalid dates
       }
-      
+
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      
+
       if (!monthlyVisits[monthKey]) {
         monthlyVisits[monthKey] = 0;
       }
       monthlyVisits[monthKey]++;
     });
-    
+
     // Sort months and prepare data
     const sortedMonths = Object.keys(monthlyVisits).sort();
-    const months = sortedMonths.map(month => {
+    const months = sortedMonths.map((month) => {
       const [year, monthNum] = month.split('-');
       const date = new Date(year, monthNum - 1);
       return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
     });
-    const visits = sortedMonths.map(month => monthlyVisits[month]);
-    
+    const visits = sortedMonths.map((month) => monthlyVisits[month]);
+
     res.json({ months, visits });
   } catch (error) {
     console.error('Error in /visits-over-time endpoint:', error);
@@ -382,45 +386,45 @@ router.get('/visits-over-time', async (req, res) => {
 router.get('/customer-types', async (req, res) => {
   try {
     const { storeId } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const invoices = await analyticsService.getInvoices(storeId, { includeExcluded: false });
-    
+
     // Comprehensive date parser for multiple formats
     const parseInvoiceDate = (dateString) => {
       if (!dateString) return null;
-      
+
       // Format: DD-MM-YYYY HH:mm:ss (e.g., "27-07-2025 00:00:00")
       let match = dateString.match(/^(\d{1,2})-(\d{1,2})-(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
       if (match) {
         const [, day, month, year, hour, minute, second] = match;
         return new Date(year, month - 1, day, hour, minute, second);
       }
-      
+
       // Format: DD-MM-YYYY (e.g., "13-05-2025")
       match = dateString.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
       if (match) {
         const [, day, month, year] = match;
         return new Date(year, month - 1, day);
       }
-      
+
       // Format: DD/MM/YYYY HH:mm:ss (e.g., "13/01/2025 13:54:50")
       match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
       if (match) {
         const [, day, month, year, hour, minute, second] = match;
         return new Date(year, month - 1, day, hour, minute, second);
       }
-      
+
       // Format: DD/MM/YYYY (e.g., "13/01/2025")
       match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
       if (match) {
         const [, day, month, year] = match;
         return new Date(year, month - 1, day);
       }
-      
+
       // Format: DD/MM/YY (e.g., "27/03/20")
       match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
       if (match) {
@@ -428,7 +432,7 @@ router.get('/customer-types', async (req, res) => {
         const fullYear = parseInt(year) + 2000; // Assume 20xx
         return new Date(fullYear, month - 1, day);
       }
-      
+
       // Format: DDMMYYYY (e.g., "04709720250" - seems malformed, try to extract)
       match = dateString.match(/^(\d{2})(\d{2})(\d{4})/);
       if (match && dateString.length >= 8) {
@@ -437,17 +441,17 @@ router.get('/customer-types', async (req, res) => {
           return new Date(year, month - 1, day);
         }
       }
-      
+
       // Fallback to standard Date parsing
       const fallbackDate = new Date(dateString);
       if (!isNaN(fallbackDate.getTime())) {
         return fallbackDate;
       }
-      
+
       console.warn(`Could not parse date: ${dateString}`);
       return null;
     };
-    
+
     // Function to normalize phone numbers
     const normalizePhone = (phone) => {
       if (!phone || typeof phone !== 'string') return null;
@@ -455,33 +459,33 @@ router.get('/customer-types', async (req, res) => {
       if (cleaned.length < 10) return null;
       return cleaned;
     };
-    
+
     // Track customer transaction history
     const customerTransactions = new Map();
-    
-    invoices.forEach(invoice => {
+
+    invoices.forEach((invoice) => {
       const normalizedPhone = normalizePhone(invoice.customer_phone);
       const date = parseInvoiceDate(invoice.invoice_date);
-      
+
       if (normalizedPhone && date) {
         if (!customerTransactions.has(normalizedPhone)) {
           customerTransactions.set(normalizedPhone, []);
         }
         customerTransactions.get(normalizedPhone).push({
           date: date,
-          invoiceId: invoice.invoice_no || invoice.invoice_id || null
+          invoiceId: invoice.invoice_no || invoice.invoice_id || null,
         });
       }
     });
-    
+
     // Sort transactions by date for each customer
     customerTransactions.forEach((transactions, phone) => {
       transactions.sort((a, b) => a.date.getTime() - b.date.getTime());
     });
-    
+
     let newCustomers = 0;
     let returningCustomers = 0;
-    
+
     customerTransactions.forEach((transactions, phone) => {
       if (transactions.length === 1) {
         newCustomers++;
@@ -489,7 +493,7 @@ router.get('/customer-types', async (req, res) => {
         returningCustomers++;
       }
     });
-    
+
     res.json({ newCustomers, returningCustomers });
   } catch (error) {
     console.error('Error in /customer-types endpoint:', error);
@@ -501,18 +505,14 @@ router.get('/customer-types', async (req, res) => {
 router.get('/campaign-history', async (req, res) => {
   try {
     const { storeId } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const campaigns = await analyticsService.getCampaignHistory(storeId);
     const campaignIds = Array.from(
-      new Set(
-        campaigns
-          .map(item => item.campaignId || item.campaign_id || null)
-          .filter(Boolean)
-      )
+      new Set(campaigns.map((item) => item.campaignId || item.campaign_id || null).filter(Boolean))
     );
 
     const metadataMap = new Map();
@@ -521,7 +521,7 @@ router.get('/campaign-history', async (req, res) => {
     const attemptStatusMap = new Map();
 
     const statsByCampaignId = new Map();
-    campaigns.forEach(item => {
+    campaigns.forEach((item) => {
       const campaignId = item.campaignId || item.campaign_id || null;
       if (!campaignId) {
         return;
@@ -529,7 +529,8 @@ router.get('/campaign-history', async (req, res) => {
       const status = (item.status || '').toString().toLowerCase();
       const errorCode = item.error_code ?? item.errorCode ?? null;
       const isFailed = status === 'failed' || status === 'error';
-      const isSuccess = !isFailed && (errorCode === null || errorCode === undefined || errorCode === '');
+      const isSuccess =
+        !isFailed && (errorCode === null || errorCode === undefined || errorCode === '');
       const existing = statsByCampaignId.get(campaignId) || { total: 0, success: 0 };
       existing.total += 1;
       if (isSuccess) {
@@ -539,10 +540,10 @@ router.get('/campaign-history', async (req, res) => {
     });
 
     await Promise.all(
-      campaignIds.map(async campaignId => {
+      campaignIds.map(async (campaignId) => {
         const [metadata, attempts] = await Promise.all([
           analyticsService.getCampaignMetadataById(campaignId).catch(() => null),
-          resendService.listResendAttemptsByCampaignId(campaignId).catch(() => [])
+          resendService.listResendAttemptsByCampaignId(campaignId).catch(() => []),
         ]);
         if (metadata) {
           metadataMap.set(campaignId, metadata);
@@ -554,33 +555,35 @@ router.get('/campaign-history', async (req, res) => {
             return bTime - aTime;
           });
           latestAttemptMap.set(campaignId, sorted[0]);
-          const attemptStatuses = sorted.map(item =>
+          const attemptStatuses = sorted.map((item) =>
             (item.status || '').toString().toUpperCase()
           );
           attemptStatusMap.set(campaignId, {
-            hasActiveAttempt: attemptStatuses.some(status => ['SCHEDULED', 'RUNNING'].includes(status)),
-            latestStatus: (sorted[0]?.status || '').toString().toUpperCase() || null
+            hasActiveAttempt: attemptStatuses.some((status) =>
+              ['SCHEDULED', 'RUNNING'].includes(status)
+            ),
+            latestStatus: (sorted[0]?.status || '').toString().toUpperCase() || null,
           });
           const attemptNumbers = sorted
-            .map(item => Number(item.attempt_number || 0))
-            .filter(value => Number.isFinite(value) && value > 0);
+            .map((item) => Number(item.attempt_number || 0))
+            .filter((value) => Number.isFinite(value) && value > 0);
           const maxAttemptNumber = attemptNumbers.length
             ? Math.max(...attemptNumbers)
             : sorted.length;
           attemptStatsMap.set(campaignId, {
             maxAttemptNumber,
-            totalAttempts: sorted.length
+            totalAttempts: sorted.length,
           });
         } else {
           attemptStatusMap.set(campaignId, {
             hasActiveAttempt: false,
-            latestStatus: null
+            latestStatus: null,
           });
         }
       })
     );
 
-    const normalized = campaigns.map(item => {
+    const normalized = campaigns.map((item) => {
       const campaignId = item.campaignId || item.campaign_id || null;
       if (!campaignId) {
         return item;
@@ -589,14 +592,14 @@ router.get('/campaign-history', async (req, res) => {
       const latestAttempt = latestAttemptMap.get(campaignId);
       const attemptStats = attemptStatsMap.get(campaignId) || {
         maxAttemptNumber: 0,
-        totalAttempts: 0
+        totalAttempts: 0,
       };
       const resendSettings = metadata
         ? {
             enabled: Boolean(metadata.resend_enabled),
             delayOption: metadata.resend_delay_option || null,
             maxAttempts: RESEND_MAX_ATTEMPTS,
-            stopped: Boolean(metadata.resend_stopped)
+            stopped: Boolean(metadata.resend_stopped),
           }
         : { enabled: false, delayOption: null, maxAttempts: RESEND_MAX_ATTEMPTS, stopped: false };
       const headerImageS3Key = metadata?.header_image_s3_key || null;
@@ -608,18 +611,18 @@ router.get('/campaign-history', async (req, res) => {
             successCount: latestAttempt.success_count ?? 0,
             failedCount: latestAttempt.failed_count ?? 0,
             limitedByMetaCount: latestAttempt.limited_by_meta_count ?? 0,
-            maxAttempts: latestAttempt.max_attempts ?? RESEND_MAX_ATTEMPTS
+            maxAttempts: latestAttempt.max_attempts ?? RESEND_MAX_ATTEMPTS,
           }
         : null;
       const stats = statsByCampaignId.get(campaignId) || { total: 0, success: 0 };
       const successRate = stats.total > 0 ? stats.success / stats.total : 0;
       const attemptStatus = attemptStatusMap.get(campaignId) || {
         hasActiveAttempt: false,
-        latestStatus: null
+        latestStatus: null,
       };
       const hasTerminalAttempt = Boolean(
         attemptStatus.latestStatus &&
-          ['COMPLETED', 'FAILED', 'CANCELLED'].includes(attemptStatus.latestStatus)
+        ['COMPLETED', 'FAILED', 'CANCELLED'].includes(attemptStatus.latestStatus)
       );
       const maxAttemptNumber = attemptStats.maxAttemptNumber || 0;
       const shouldComplete =
@@ -636,7 +639,7 @@ router.get('/campaign-history', async (req, res) => {
         successRate,
         resendAttemptCount: attemptStats.totalAttempts || 0,
         headerImageS3Key,
-        header_image_s3_key: headerImageS3Key
+        header_image_s3_key: headerImageS3Key,
       };
     });
 
@@ -716,11 +719,11 @@ router.get('/campaign-history/:campaignId/recipients', async (req, res) => {
 router.get('/customer-kpis', async (req, res) => {
   try {
     const { storeId, timeFilter = 'monthly' } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const kpis = await analyticsService.getCustomerKPIs(storeId, timeFilter);
     res.json(kpis);
   } catch (error) {
@@ -733,11 +736,11 @@ router.get('/customer-kpis', async (req, res) => {
 router.get('/customer-spend', async (req, res) => {
   try {
     const { storeId, timeFilter = 'monthly' } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const spend = await analyticsService.getCustomerSpend(storeId, timeFilter);
     res.json(spend);
   } catch (error) {
@@ -750,11 +753,11 @@ router.get('/customer-spend', async (req, res) => {
 router.get('/customer-details', async (req, res) => {
   try {
     const { storeId } = req.query;
-    
+
     if (!storeId) {
       return res.status(400).json({ error: 'storeId parameter is required' });
     }
-    
+
     const customers = await analyticsService.getCustomerDetails(
       storeId,
       req.user?.customer_type_config
