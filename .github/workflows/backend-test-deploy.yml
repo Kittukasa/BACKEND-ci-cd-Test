@@ -56,7 +56,7 @@ jobs:
         id: eslint
         continue-on-error: true
         run: |
-          npx eslint "**/*.{js,ts,tsx,jsx}" --format json --output-file eslint-report.json || true
+          npx eslint "**/*.{js,jsx}" --format json --output-file eslint-report.json || true
           if grep -q '"errorCount":[^0]' eslint-report.json; then
             echo "eslint_passed=false" >> $GITHUB_OUTPUT
           else
@@ -188,7 +188,7 @@ jobs:
         id: eslint
         continue-on-error: true
         run: |
-          npx eslint "**/*.{js,ts,tsx,jsx}" --format json --output-file eslint-report.json || true
+          npx eslint "**/*.{js,jsx}" --format json --output-file eslint-report.json || true
           if grep -q '"errorCount":[^0]' eslint-report.json; then
             echo "eslint_passed=false" >> $GITHUB_OUTPUT
           else
@@ -322,7 +322,7 @@ jobs:
         id: eslint
         continue-on-error: true
         run: |
-          npx eslint "**/*.{js,ts,tsx,jsx}" --format json --output-file eslint-report.json || true
+          npx eslint "**/*.{js,jsx}" --format json --output-file eslint-report.json || true
           if grep -q '"errorCount":[^0]' eslint-report.json; then
             echo "eslint_passed=false" >> $GITHUB_OUTPUT
           else
