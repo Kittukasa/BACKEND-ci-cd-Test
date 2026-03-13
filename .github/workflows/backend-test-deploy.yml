@@ -1,0 +1,414 @@
+name: CI/CD Multi-Stage Pipeline
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - test
+      - main
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+
+# ============================================================
+# STAGE 1 — (feature → dev)
+# ============================================================
+  stage-1:
+    name: "Stage 1 · Prettier + ESLint + Coverage"
+    if: github.base_ref == 'dev'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+          persist-credentials: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Prettier
+        run: npx prettier --write "**/*.{js,jsx,ts,tsx,css,scss,json,md}"
+
+      - name: Commit formatted code
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add .
+            git commit -m "style: auto-format with Prettier"
+            git push origin HEAD:${{ github.head_ref }}
+          else
+            echo "No formatting changes"
+          fi
+
+      - name: Run ESLint
+        id: eslint
+        continue-on-error: true
+        run: |
+          npx eslint "**/*.{js,ts,tsx,jsx}" --format json --output-file eslint-report.json || true
+          if grep -q '"errorCount":[^0]' eslint-report.json; then
+            echo "eslint_passed=false" >> $GITHUB_OUTPUT
+          else
+            echo "eslint_passed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests with coverage
+        continue-on-error: true
+        run: npx vitest run --coverage
+
+      - name: Generate Reports
+        if: always()
+        run: |
+          node << 'EOF'
+          var fs = require('fs');
+          var stage = 'Stage 1';
+          var pr = '${{ github.event.pull_request.number }}';
+          var head = '${{ github.head_ref }}';
+          var repo = '${{ github.repository }}';
+          var author = '${{ github.event.pull_request.user.login }}';
+          var now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+          var meta = '<p><b>BILLBOX</b> | Repo: ' + repo + ' | PR #' + pr + ' | Branch: ' + head + ' | Author: ' + author + ' | Generated: ' + now + '</p><hr>';
+          var style = '<style>body{font-family:sans-serif;padding:20px}h2{margin-bottom:8px}.summary{margin-bottom:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left}th{background:#f2f2f2}tr:nth-child(even){background:#fafafa}tr:hover{background:#f0f0f0}.total{font-weight:bold;background:#e8f4e8}</style>';
+
+          fs.mkdirSync('reports', { recursive: true });
+
+          if (fs.existsSync('eslint-report.json')) {
+            var data = JSON.parse(fs.readFileSync('eslint-report.json', 'utf8'));
+            var errors = data.reduce(function(s,f){ return s + f.errorCount; }, 0);
+            var warnings = data.reduce(function(s,f){ return s + f.warningCount; }, 0);
+            var files = data.filter(function(f){ return f.messages.length > 0; });
+            var rows = files.map(function(f) {
+              return f.messages.map(function(m) {
+                var sev = m.severity === 2 ? 'Error' : 'Warning';
+                var col = m.severity === 2 ? 'red' : 'orange';
+                var path = f.filePath.replace(/.*src\//, 'src/');
+                return '<tr><td>' + path + '</td><td>' + m.line + ':' + m.column + '</td><td style="color:' + col + '">' + sev + '</td><td>' + m.message.replace(/</g,'&lt;') + '</td><td>' + (m.ruleId||'N/A') + '</td></tr>';
+              }).join('');
+            }).join('');
+            var table = rows ? '<table><thead><tr><th>File</th><th>Location</th><th>Severity</th><th>Message</th><th>Rule</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p style="color:green">No ESLint issues found!</p>';
+            var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BILLBOX ESLint Report - ' + stage + '</title>' + style + '</head><body><h2>BILLBOX ESLint Report - ' + stage + '</h2>' + meta + '<div class="summary">Errors: <b style="color:red">' + errors + '</b> &nbsp; Warnings: <b style="color:orange">' + warnings + '</b> &nbsp; Files with issues: <b>' + files.length + '</b></div>' + table + '</body></html>';
+            fs.writeFileSync('reports/eslint-report.html', html);
+          }
+
+          if (fs.existsSync('coverage/coverage-summary.json')) {
+            var cov = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+            var total = cov.total;
+            var covFiles = Object.entries(cov).filter(function(e){ return e[0] !== 'total'; });
+            var pct = function(m){ return m ? m.pct + '%' : 'N/A'; };
+            var color = function(p){ return p >= 80 ? 'green' : p >= 50 ? 'orange' : 'red'; };
+            var covRows = covFiles.map(function(e) {
+              var file = e[0]; var m = e[1];
+              var path = file.replace(/.*src\//, 'src/');
+              return '<tr><td>' + path + '</td><td style="color:' + color(m.statements.pct) + '">' + pct(m.statements) + '</td><td style="color:' + color(m.branches.pct) + '">' + pct(m.branches) + '</td><td style="color:' + color(m.functions.pct) + '">' + pct(m.functions) + '</td><td style="color:' + color(m.lines.pct) + '">' + pct(m.lines) + '</td></tr>';
+            }).join('');
+            var totalRow = '<tr class="total"><td>TOTAL</td><td style="color:' + color(total.statements.pct) + '">' + pct(total.statements) + '</td><td style="color:' + color(total.branches.pct) + '">' + pct(total.branches) + '</td><td style="color:' + color(total.functions.pct) + '">' + pct(total.functions) + '</td><td style="color:' + color(total.lines.pct) + '">' + pct(total.lines) + '</td></tr>';
+            var covHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BILLBOX Coverage Report - ' + stage + '</title>' + style + '</head><body><h2>BILLBOX Coverage Report - ' + stage + '</h2>' + meta + '<table><thead><tr><th>File</th><th>Statements</th><th>Branches</th><th>Functions</th><th>Lines</th></tr></thead><tbody>' + totalRow + covRows + '</tbody></table></body></html>';
+            fs.writeFileSync('reports/coverage-report.html', covHtml);
+          }
+          EOF
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-1-reports-PR${{ github.event.pull_request.number }}
+          path: reports/
+          retention-days: 7
+
+      - name: Fail if ESLint errors
+        if: steps.eslint.outputs.eslint_passed == 'false'
+        run: |
+          echo "ESLint errors detected — Stage 1 failed"
+          exit 1
+
+      - name: Package and upload code
+        run: |
+          tar --exclude='.git' --exclude='node_modules' --exclude='coverage' --exclude='reports' \
+            -czf /tmp/stage-1-code.tar.gz .
+
+      - name: Upload code artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-1-code-PR${{ github.event.pull_request.number }}
+          path: /tmp/stage-1-code.tar.gz
+          retention-days: 7
+
+# ============================================================
+# STAGE 2 — (dev → test)
+# ============================================================
+  stage-2:
+    name: "Stage 2 · Prettier + ESLint + Coverage"
+    needs: stage-1
+    if: |
+      always() &&
+      github.base_ref == 'test' &&
+      (needs.stage-1.result == 'success' || needs.stage-1.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Stage 1 code
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: stage-1-code-PR${{ github.event.pull_request.number }}
+          path: /tmp
+
+      - name: Extract artifact
+        if: steps.download.outcome == 'success'
+        run: tar -xzf /tmp/stage-1-code.tar.gz -C .
+
+      - name: Fallback checkout
+        if: steps.download.outcome != 'success'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Prettier check
+        run: npx prettier --check "**/*.{js,jsx,ts,tsx,css,scss,json,md}" || true
+
+      - name: Run ESLint
+        id: eslint
+        continue-on-error: true
+        run: |
+          npx eslint "**/*.{js,ts,tsx,jsx}" --format json --output-file eslint-report.json || true
+          if grep -q '"errorCount":[^0]' eslint-report.json; then
+            echo "eslint_passed=false" >> $GITHUB_OUTPUT
+          else
+            echo "eslint_passed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests with coverage
+        continue-on-error: true
+        run: npx vitest run --coverage
+
+      - name: Generate Reports
+        if: always()
+        run: |
+          node << 'EOF'
+          var fs = require('fs');
+          var stage = 'Stage 2';
+          var pr = '${{ github.event.pull_request.number }}';
+          var head = '${{ github.head_ref }}';
+          var repo = '${{ github.repository }}';
+          var author = '${{ github.event.pull_request.user.login }}';
+          var now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+          var meta = '<p><b>BILLBOX</b> | Repo: ' + repo + ' | PR #' + pr + ' | Branch: ' + head + ' | Author: ' + author + ' | Generated: ' + now + '</p><hr>';
+          var style = '<style>body{font-family:sans-serif;padding:20px}h2{margin-bottom:8px}.summary{margin-bottom:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left}th{background:#f2f2f2}tr:nth-child(even){background:#fafafa}tr:hover{background:#f0f0f0}.total{font-weight:bold;background:#e8f4e8}</style>';
+
+          fs.mkdirSync('reports', { recursive: true });
+
+          if (fs.existsSync('eslint-report.json')) {
+            var data = JSON.parse(fs.readFileSync('eslint-report.json', 'utf8'));
+            var errors = data.reduce(function(s,f){ return s + f.errorCount; }, 0);
+            var warnings = data.reduce(function(s,f){ return s + f.warningCount; }, 0);
+            var files = data.filter(function(f){ return f.messages.length > 0; });
+            var rows = files.map(function(f) {
+              return f.messages.map(function(m) {
+                var sev = m.severity === 2 ? 'Error' : 'Warning';
+                var col = m.severity === 2 ? 'red' : 'orange';
+                var path = f.filePath.replace(/.*src\//, 'src/');
+                return '<tr><td>' + path + '</td><td>' + m.line + ':' + m.column + '</td><td style="color:' + col + '">' + sev + '</td><td>' + m.message.replace(/</g,'&lt;') + '</td><td>' + (m.ruleId||'N/A') + '</td></tr>';
+              }).join('');
+            }).join('');
+            var table = rows ? '<table><thead><tr><th>File</th><th>Location</th><th>Severity</th><th>Message</th><th>Rule</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p style="color:green">No ESLint issues found!</p>';
+            var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BILLBOX ESLint Report - ' + stage + '</title>' + style + '</head><body><h2>BILLBOX ESLint Report - ' + stage + '</h2>' + meta + '<div class="summary">Errors: <b style="color:red">' + errors + '</b> &nbsp; Warnings: <b style="color:orange">' + warnings + '</b> &nbsp; Files with issues: <b>' + files.length + '</b></div>' + table + '</body></html>';
+            fs.writeFileSync('reports/eslint-report.html', html);
+          }
+
+          if (fs.existsSync('coverage/coverage-summary.json')) {
+            var cov = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+            var total = cov.total;
+            var covFiles = Object.entries(cov).filter(function(e){ return e[0] !== 'total'; });
+            var pct = function(m){ return m ? m.pct + '%' : 'N/A'; };
+            var color = function(p){ return p >= 80 ? 'green' : p >= 50 ? 'orange' : 'red'; };
+            var covRows = covFiles.map(function(e) {
+              var file = e[0]; var m = e[1];
+              var path = file.replace(/.*src\//, 'src/');
+              return '<tr><td>' + path + '</td><td style="color:' + color(m.statements.pct) + '">' + pct(m.statements) + '</td><td style="color:' + color(m.branches.pct) + '">' + pct(m.branches) + '</td><td style="color:' + color(m.functions.pct) + '">' + pct(m.functions) + '</td><td style="color:' + color(m.lines.pct) + '">' + pct(m.lines) + '</td></tr>';
+            }).join('');
+            var totalRow = '<tr class="total"><td>TOTAL</td><td style="color:' + color(total.statements.pct) + '">' + pct(total.statements) + '</td><td style="color:' + color(total.branches.pct) + '">' + pct(total.branches) + '</td><td style="color:' + color(total.functions.pct) + '">' + pct(total.functions) + '</td><td style="color:' + color(total.lines.pct) + '">' + pct(total.lines) + '</td></tr>';
+            var covHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BILLBOX Coverage Report - ' + stage + '</title>' + style + '</head><body><h2>BILLBOX Coverage Report - ' + stage + '</h2>' + meta + '<table><thead><tr><th>File</th><th>Statements</th><th>Branches</th><th>Functions</th><th>Lines</th></tr></thead><tbody>' + totalRow + covRows + '</tbody></table></body></html>';
+            fs.writeFileSync('reports/coverage-report.html', covHtml);
+          }
+          EOF
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-2-reports-PR${{ github.event.pull_request.number }}
+          path: reports/
+          retention-days: 7
+
+      - name: Fail if ESLint errors
+        if: steps.eslint.outputs.eslint_passed == 'false'
+        run: |
+          echo "ESLint errors detected — Stage 2 failed"
+          exit 1
+
+      - name: Package and upload code
+        run: |
+          tar --exclude='.git' --exclude='node_modules' --exclude='coverage' --exclude='reports' \
+            -czf /tmp/stage-2-code.tar.gz .
+
+      - name: Upload code artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-2-code-PR${{ github.event.pull_request.number }}
+          path: /tmp/stage-2-code.tar.gz
+          retention-days: 7
+
+# ============================================================
+# STAGE 3 — (test → main)
+# ============================================================
+  stage-3:
+    name: "Stage 3 · Prettier + ESLint + Coverage + Deploy"
+    needs: stage-2
+    if: |
+      always() &&
+      github.base_ref == 'main' &&
+      (needs.stage-2.result == 'success' || needs.stage-2.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment:
+      name: prod
+    steps:
+      - name: Download Stage 2 code
+        id: download
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: stage-2-code-PR${{ github.event.pull_request.number }}
+          path: /tmp
+
+      - name: Extract artifact
+        if: steps.download.outcome == 'success'
+        run: tar -xzf /tmp/stage-2-code.tar.gz -C .
+
+      - name: Fallback checkout
+        if: steps.download.outcome != 'success'
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Prettier check
+        run: npx prettier --check "**/*.{js,jsx,ts,tsx,css,scss,json,md}" || true
+
+      - name: Run ESLint
+        id: eslint
+        continue-on-error: true
+        run: |
+          npx eslint "**/*.{js,ts,tsx,jsx}" --format json --output-file eslint-report.json || true
+          if grep -q '"errorCount":[^0]' eslint-report.json; then
+            echo "eslint_passed=false" >> $GITHUB_OUTPUT
+          else
+            echo "eslint_passed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run tests with coverage
+        continue-on-error: true
+        run: npx vitest run --coverage
+
+      - name: Generate Reports
+        if: always()
+        run: |
+          node << 'EOF'
+          var fs = require('fs');
+          var stage = 'Stage 3';
+          var pr = '${{ github.event.pull_request.number }}';
+          var head = '${{ github.head_ref }}';
+          var repo = '${{ github.repository }}';
+          var author = '${{ github.event.pull_request.user.login }}';
+          var now = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+          var meta = '<p><b>BILLBOX</b> | Repo: ' + repo + ' | PR #' + pr + ' | Branch: ' + head + ' | Author: ' + author + ' | Generated: ' + now + '</p><hr>';
+          var style = '<style>body{font-family:sans-serif;padding:20px}h2{margin-bottom:8px}.summary{margin-bottom:16px}table{border-collapse:collapse;width:100%}th,td{border:1px solid #ddd;padding:8px;font-size:13px;text-align:left}th{background:#f2f2f2}tr:nth-child(even){background:#fafafa}tr:hover{background:#f0f0f0}.total{font-weight:bold;background:#e8f4e8}</style>';
+
+          fs.mkdirSync('reports', { recursive: true });
+
+          if (fs.existsSync('eslint-report.json')) {
+            var data = JSON.parse(fs.readFileSync('eslint-report.json', 'utf8'));
+            var errors = data.reduce(function(s,f){ return s + f.errorCount; }, 0);
+            var warnings = data.reduce(function(s,f){ return s + f.warningCount; }, 0);
+            var files = data.filter(function(f){ return f.messages.length > 0; });
+            var rows = files.map(function(f) {
+              return f.messages.map(function(m) {
+                var sev = m.severity === 2 ? 'Error' : 'Warning';
+                var col = m.severity === 2 ? 'red' : 'orange';
+                var path = f.filePath.replace(/.*src\//, 'src/');
+                return '<tr><td>' + path + '</td><td>' + m.line + ':' + m.column + '</td><td style="color:' + col + '">' + sev + '</td><td>' + m.message.replace(/</g,'&lt;') + '</td><td>' + (m.ruleId||'N/A') + '</td></tr>';
+              }).join('');
+            }).join('');
+            var table = rows ? '<table><thead><tr><th>File</th><th>Location</th><th>Severity</th><th>Message</th><th>Rule</th></tr></thead><tbody>' + rows + '</tbody></table>' : '<p style="color:green">No ESLint issues found!</p>';
+            var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BILLBOX ESLint Report - ' + stage + '</title>' + style + '</head><body><h2>BILLBOX ESLint Report - ' + stage + '</h2>' + meta + '<div class="summary">Errors: <b style="color:red">' + errors + '</b> &nbsp; Warnings: <b style="color:orange">' + warnings + '</b> &nbsp; Files with issues: <b>' + files.length + '</b></div>' + table + '</body></html>';
+            fs.writeFileSync('reports/eslint-report.html', html);
+          }
+
+          if (fs.existsSync('coverage/coverage-summary.json')) {
+            var cov = JSON.parse(fs.readFileSync('coverage/coverage-summary.json', 'utf8'));
+            var total = cov.total;
+            var covFiles = Object.entries(cov).filter(function(e){ return e[0] !== 'total'; });
+            var pct = function(m){ return m ? m.pct + '%' : 'N/A'; };
+            var color = function(p){ return p >= 80 ? 'green' : p >= 50 ? 'orange' : 'red'; };
+            var covRows = covFiles.map(function(e) {
+              var file = e[0]; var m = e[1];
+              var path = file.replace(/.*src\//, 'src/');
+              return '<tr><td>' + path + '</td><td style="color:' + color(m.statements.pct) + '">' + pct(m.statements) + '</td><td style="color:' + color(m.branches.pct) + '">' + pct(m.branches) + '</td><td style="color:' + color(m.functions.pct) + '">' + pct(m.functions) + '</td><td style="color:' + color(m.lines.pct) + '">' + pct(m.lines) + '</td></tr>';
+            }).join('');
+            var totalRow = '<tr class="total"><td>TOTAL</td><td style="color:' + color(total.statements.pct) + '">' + pct(total.statements) + '</td><td style="color:' + color(total.branches.pct) + '">' + pct(total.branches) + '</td><td style="color:' + color(total.functions.pct) + '">' + pct(total.functions) + '</td><td style="color:' + color(total.lines.pct) + '">' + pct(total.lines) + '</td></tr>';
+            var covHtml = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>BILLBOX Coverage Report - ' + stage + '</title>' + style + '</head><body><h2>BILLBOX Coverage Report - ' + stage + '</h2>' + meta + '<table><thead><tr><th>File</th><th>Statements</th><th>Branches</th><th>Functions</th><th>Lines</th></tr></thead><tbody>' + totalRow + covRows + '</tbody></table></body></html>';
+            fs.writeFileSync('reports/coverage-report.html', covHtml);
+          }
+          EOF
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: stage-3-reports-PR${{ github.event.pull_request.number }}
+          path: reports/
+          retention-days: 7
+
+      - name: Fail if ESLint errors
+        if: steps.eslint.outputs.eslint_passed == 'false'
+        run: |
+          echo "ESLint errors detected — Stage 3 failed"
+          exit 1
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Build project
+        run: npm run build
+
+      - name: Deploy to S3
+        run: |
+          aws s3 sync ./dist s3://${{ vars.S3_BUCKET_NAME }} --delete
+          echo "Deployed to s3://${{ vars.S3_BUCKET_NAME }}"
