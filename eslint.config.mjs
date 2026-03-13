@@ -7,7 +7,8 @@ export default [
     ignores: [
       'node_modules/**',
       'coverage/**',
-      'reports/**'
+      'reports/**',
+      'vitest.config.js'
     ],
     languageOptions: {
       ecmaVersion: 'latest',

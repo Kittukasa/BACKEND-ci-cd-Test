@@ -16,18 +16,10 @@ const {
   finalizeCampaignProgress,
   failCampaignProgress,
   getCampaignProgress,
-  getActiveCampaignsByStore,
+  getActiveCampaignsByStore
 } = require('../utils/campaignProgressStore');
 const { docClient } = require('../config/dynamodb');
-const {
-  GetCommand,
-  UpdateCommand,
-  ScanCommand,
-  PutCommand,
-  QueryCommand,
-  BatchWriteCommand,
-  DeleteCommand,
-} = require('@aws-sdk/lib-dynamodb');
+const { GetCommand, UpdateCommand, ScanCommand, PutCommand, QueryCommand, BatchWriteCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
 const FormData = require('form-data');
 const multer = require('multer');
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 } });
@@ -42,7 +34,8 @@ const STORE_CONFIG_PHONE_INDEX =
   process.env.STORE_WHATSAPP_CONFIG_PHONE_INDEX ||
   process.env.STORE_CONFIG_PHONE_INDEX ||
   'phone_number_id-waba_id-index';
-const WHATSAPP_MESSAGES_TABLE = process.env.STORE_WHATSAPP_MESSAGES_TABLE;
+const WHATSAPP_MESSAGES_TABLE =
+  process.env.STORE_WHATSAPP_MESSAGES_TABLE;
 const CUSTOMER_RECORDS_TABLE = process.env.CUSTOMER_RECORDS_TABLE || null;
 const WHATSAPP_MESSAGES_CUSTOMER_INDEX = 'customerConnect';
 const DEFAULT_TEMPLATE_FIELDS = [
@@ -54,7 +47,7 @@ const DEFAULT_TEMPLATE_FIELDS = [
   'sub_category',
   'last_updated_time',
   'components',
-  'quality_score',
+  'quality_score'
 ].join(',');
 
 const phoneNumberStoreCache = new Map();
@@ -67,9 +60,9 @@ const STATIC_WABA_ACCESS_TOKEN = process.env.WABA_ACCESS_TOKEN || null;
 const DEFAULT_COUNTRY_CODE =
   (process.env.WHATSAPP_DEFAULT_COUNTRY_CODE || '91').replace(/[^\d]/g, '') || '91';
 
-const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-const digitsOnly = (value) => {
+const digitsOnly = value => {
   if (value === undefined || value === null) {
     return '';
   }
@@ -90,7 +83,7 @@ const CHAT_MEDIA_MIME_TYPES = new Set([
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  'text/plain',
+  'text/plain'
 ]);
 
 const resolveChatMediaType = (file) => {
@@ -106,7 +99,7 @@ const resolveChatMediaType = (file) => {
   return null;
 };
 
-const parseCatalogPrice = (rawPrice) => {
+const parseCatalogPrice = rawPrice => {
   if (rawPrice === null || rawPrice === undefined) {
     return { amount: null, currency: null, display: null };
   }
@@ -129,7 +122,7 @@ const parseCatalogPrice = (rawPrice) => {
           try {
             display = new Intl.NumberFormat('en-IN', {
               style: 'currency',
-              currency,
+              currency
             }).format(possibleAmount);
           } catch {
             display = `${possibleAmount} ${currency}`;
@@ -147,13 +140,7 @@ const parseCatalogPrice = (rawPrice) => {
   return { amount: null, currency: null, display: null };
 };
 
-const fetchCatalogProducts = async ({
-  catalogId,
-  accessToken,
-  graphVersion,
-  limit = 100,
-  productSetId = null,
-}) => {
+const fetchCatalogProducts = async ({ catalogId, accessToken, graphVersion, limit = 100, productSetId = null }) => {
   const products = [];
   const resourceId = productSetId || catalogId;
   if (!resourceId || !accessToken) {
@@ -168,7 +155,7 @@ const fetchCatalogProducts = async ({
     'price',
     'currency',
     'image_url',
-    'availability',
+    'availability'
   ].join(',');
 
   let nextUrl = `https://graph.facebook.com/${version}/${resourceId}/products?fields=${fields}&limit=${limit}`;
@@ -176,11 +163,11 @@ const fetchCatalogProducts = async ({
   while (nextUrl && products.length < limit) {
     const response = await axios.get(nextUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      timeout: 12000,
+      timeout: 12000
     });
     const data = response.data || {};
     const items = Array.isArray(data.data) ? data.data : [];
-    items.forEach((item) => {
+    items.forEach(item => {
       const priceInfo = parseCatalogPrice(item.price ?? item.price_amount ?? null);
       products.push({
         id: item.id || '',
@@ -190,7 +177,7 @@ const fetchCatalogProducts = async ({
         price: priceInfo.display || item.price || '',
         price_value: priceInfo.amount,
         currency: item.currency || priceInfo.currency || null,
-        availability: item.availability || null,
+        availability: item.availability || null
       });
     });
     const nextLink = data?.paging?.next || null;
@@ -213,21 +200,21 @@ const fetchCatalogCollections = async ({ catalogId, accessToken, graphVersion, l
   while (nextUrl) {
     const response = await axios.get(nextUrl, {
       headers: { Authorization: `Bearer ${accessToken}` },
-      timeout: 15000,
+      timeout: 15000
     });
     const data = response.data?.data || [];
-    data.forEach((item) => {
+    data.forEach(item => {
       collections.push({
         id: item.id || null,
         name: item.name || null,
         product_count: item.product_count ?? null,
-        updated_time: item.updated_time || null,
+        updated_time: item.updated_time || null
       });
     });
     nextUrl = response.data?.paging?.next || null;
   }
 
-  return collections.filter((item) => item.id);
+  return collections.filter(item => item.id);
 };
 
 const uploadChatMedia = async ({ file, phoneNumberId, accessToken, graphVersion }) => {
@@ -235,15 +222,15 @@ const uploadChatMedia = async ({ file, phoneNumberId, accessToken, graphVersion 
   const formData = new FormData();
   formData.append('file', file.buffer, {
     filename: file.originalname || `media_${Date.now()}`,
-    contentType: file.mimetype,
+    contentType: file.mimetype
   });
   formData.append('messaging_product', 'whatsapp');
 
   const response = await axios.post(uploadUrl, formData, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      ...formData.getHeaders(),
-    },
+      ...formData.getHeaders()
+    }
   });
 
   const mediaId = response.data?.id || null;
@@ -253,7 +240,7 @@ const uploadChatMedia = async ({ file, phoneNumberId, accessToken, graphVersion 
   return mediaId;
 };
 
-const normalizePhoneWithDefaultCountry = (rawValue) => {
+const normalizePhoneWithDefaultCountry = rawValue => {
   let digits = digitsOnly(rawValue);
   if (!digits) {
     return '';
@@ -274,7 +261,7 @@ const normalizePhoneWithDefaultCountry = (rawValue) => {
   return digits;
 };
 
-const formatPhoneToE164 = (rawValue) => {
+const formatPhoneToE164 = rawValue => {
   const normalizedDigits = normalizePhoneWithDefaultCountry(rawValue);
   if (!normalizedDigits) {
     return null;
@@ -282,23 +269,14 @@ const formatPhoneToE164 = (rawValue) => {
   return `+${normalizedDigits}`;
 };
 
-const formatPhoneWithCountryDigits = (rawValue) => {
+const formatPhoneWithCountryDigits = rawValue => {
   const normalizedDigits = normalizePhoneWithDefaultCountry(rawValue);
   return normalizedDigits || null;
 };
-const CAMPAIGN_CONCURRENCY = Math.max(
-  1,
-  parseInt(process.env.WHATSAPP_CAMPAIGN_CONCURRENCY || '10', 10)
-);
+const CAMPAIGN_CONCURRENCY = Math.max(1, parseInt(process.env.WHATSAPP_CAMPAIGN_CONCURRENCY || '10', 10));
 const CAMPAIGN_MAX_MPS = Math.max(0, parseInt(process.env.WHATSAPP_CAMPAIGN_MAX_MPS || '20', 10));
-const CAMPAIGN_MAX_RETRIES = Math.max(
-  0,
-  parseInt(process.env.WHATSAPP_CAMPAIGN_MAX_RETRIES || '3', 10)
-);
-const CAMPAIGN_RETRY_BASE_DELAY_MS = Math.max(
-  100,
-  parseInt(process.env.WHATSAPP_CAMPAIGN_RETRY_BASE_DELAY_MS || '1000', 10)
-);
+const CAMPAIGN_MAX_RETRIES = Math.max(0, parseInt(process.env.WHATSAPP_CAMPAIGN_MAX_RETRIES || '3', 10));
+const CAMPAIGN_RETRY_BASE_DELAY_MS = Math.max(100, parseInt(process.env.WHATSAPP_CAMPAIGN_RETRY_BASE_DELAY_MS || '1000', 10));
 
 function createRateLimiter(maxPerSecond) {
   if (!Number.isFinite(maxPerSecond) || maxPerSecond <= 0) {
@@ -324,19 +302,14 @@ function createRateLimiter(maxPerSecond) {
         availableTokens--;
         return Promise.resolve();
       }
-      return new Promise((resolve) => waiters.push(resolve));
-    },
+      return new Promise(resolve => waiters.push(resolve));
+    }
   };
 }
 
 const campaignRateLimiter = createRateLimiter(CAMPAIGN_MAX_MPS);
 
-const retryableNetworkCodes = new Set([
-  'ETIMEDOUT',
-  'ESOCKETTIMEDOUT',
-  'ECONNRESET',
-  'ECONNABORTED',
-]);
+const retryableNetworkCodes = new Set(['ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET', 'ECONNABORTED']);
 const RESEND_SCHEDULER_ENABLED = process.env.RESEND_SCHEDULER_ENABLED !== 'false';
 const RESEND_SCHEDULER_INTERVAL_MS = Math.max(
   30 * 1000,
@@ -367,14 +340,17 @@ function isRetryableError(error) {
 function resolveErrorInfo(error, fallbackMessage = 'Failed to send message') {
   const graphError = error?.response?.data?.error;
   const message =
-    graphError?.error_user_msg || graphError?.message || error?.message || fallbackMessage;
+    graphError?.error_user_msg ||
+    graphError?.message ||
+    error?.message ||
+    fallbackMessage;
   const rawCode =
     graphError?.code ??
     graphError?.error_subcode ??
     (typeof error?.code === 'string' || typeof error?.code === 'number' ? error.code : null);
   return {
     message,
-    code: rawCode ?? null,
+    code: rawCode ?? null
   };
 }
 
@@ -411,7 +387,7 @@ function collapseRecipientsByPhone(recipients) {
     return [];
   }
   const latestByPhone = new Map();
-  recipients.forEach((recipient) => {
+  recipients.forEach(recipient => {
     const phone = recipient?.phone || recipient?.customer_phone || '';
     if (!phone) {
       return;
@@ -440,7 +416,7 @@ function summarizeCampaignRecipients(recipients) {
     return summary;
   }
   summary.total = recipients.length;
-  recipients.forEach((recipient) => {
+  recipients.forEach(recipient => {
     const status = (recipient?.status || '').toString().toLowerCase();
     const errorCode = recipient?.errorCode ?? recipient?.error_code ?? null;
     const hasErrorCode = errorCode !== null && errorCode !== undefined && errorCode !== '';
@@ -469,7 +445,7 @@ function normalizeResendSettingsInput(payload) {
   }
   return {
     enabled: true,
-    delayOption: payload.delayOption || payload.delay_option || null,
+    delayOption: payload.delayOption || payload.delay_option || null
   };
 }
 
@@ -601,7 +577,7 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
   }
 
   const baseExpressionAttributeNames = {
-    '#invoice_id': 'invoice_id',
+    '#invoice_id': 'invoice_id'
   };
   const baseExpressionAttributeValues = {};
   attempts.forEach((value, index) => {
@@ -615,7 +591,7 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
       let lastEvaluatedKey = undefined;
       const expressionAttributeNames = { ...baseExpressionAttributeNames };
       const expressionAttributeValues = {
-        [`:invoiceId${index}`]: baseExpressionAttributeValues[`:invoiceId${index}`],
+        [`:invoiceId${index}`]: baseExpressionAttributeValues[`:invoiceId${index}`]
       };
       do {
         const response = await docClient.send(
@@ -626,7 +602,7 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
             ExpressionAttributeNames: expressionAttributeNames,
             ExpressionAttributeValues: expressionAttributeValues,
             ExclusiveStartKey: lastEvaluatedKey,
-            Limit: 1,
+            Limit: 1
           })
         );
         queriedViaIndex = true;
@@ -634,7 +610,7 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
         if (response.Items && response.Items.length > 0) {
           return {
             item: response.Items[0],
-            attemptedKeys,
+            attemptedKeys
           };
         }
 
@@ -643,21 +619,18 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
     }
   } catch (error) {
     const message = error?.message || '';
-    if (
-      error?.name === 'ResourceNotFoundException' ||
-      /Requested resource not found/i.test(message)
-    ) {
+    if (error?.name === 'ResourceNotFoundException' || /Requested resource not found/i.test(message)) {
       logger.error('Bill slug table or index not found', {
         tableName: BILL_SLUG_TABLE,
         indexName: process.env.BILL_SLUG_INVOICE_ID_INDEX || 'invoice_id_slug',
-        error: message,
+        error: message
       });
       throw new Error('Bill slug table or index not found');
     }
     logger.warn('Query lookup for bill slug failed, falling back to scan', {
       storeId,
       invoiceIdentifier,
-      error: message,
+      error: message
     });
   }
 
@@ -665,7 +638,7 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
     logger.warn('No bill slug found via invoice_id index, considering scan fallback', {
       storeId,
       invoiceIdentifier,
-      attemptedKeys,
+      attemptedKeys
     });
   }
 
@@ -680,10 +653,10 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
       .join(' OR ');
     const expressionAttributeNames = {
       '#store_id': 'store_id',
-      '#invoice_id': 'invoice_id',
+      '#invoice_id': 'invoice_id'
     };
     const expressionAttributeValues = {
-      ':storeId': storeId,
+      ':storeId': storeId
     };
     attempts.forEach((value, index) => {
       expressionAttributeValues[`:invoiceId${index}`] = value;
@@ -698,14 +671,14 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
           ExpressionAttributeNames: expressionAttributeNames,
           ExpressionAttributeValues: expressionAttributeValues,
           ExclusiveStartKey: lastEvaluatedKey,
-          Limit: 1,
+          Limit: 1
         })
       );
 
       if (response.Items && response.Items.length > 0) {
         return {
           item: response.Items[0],
-          attemptedKeys,
+          attemptedKeys
         };
       }
 
@@ -713,13 +686,10 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
     } while (lastEvaluatedKey);
   } catch (error) {
     const message = error?.message || '';
-    if (
-      error?.name === 'ResourceNotFoundException' ||
-      /Requested resource not found/i.test(message)
-    ) {
+    if (error?.name === 'ResourceNotFoundException' || /Requested resource not found/i.test(message)) {
       logger.error('Bill slug table not found', {
         tableName: BILL_SLUG_TABLE,
-        error: message,
+        error: message
       });
       throw new Error('Bill slug table not found');
     }
@@ -727,7 +697,7 @@ async function getBillSlugRecord(storeId, invoiceIdentifier) {
       storeId,
       invoiceIdentifier,
       attempts,
-      error: message,
+      error: message
     });
     throw error;
   }
@@ -742,10 +712,10 @@ async function findInvoiceRecordForUpdate(storeId, invoiceNo, invoiceId) {
 
   const invoiceFilters = [];
   const expressionAttributeNames = {
-    '#store_id': 'store_id',
+    '#store_id': 'store_id'
   };
   const expressionAttributeValues = {
-    ':storeId': storeId,
+    ':storeId': storeId
   };
 
   if (invoiceNo) {
@@ -774,7 +744,7 @@ async function findInvoiceRecordForUpdate(storeId, invoiceNo, invoiceId) {
     FilterExpression: filterExpressionParts.join(' AND '),
     ExpressionAttributeNames: expressionAttributeNames,
     ExpressionAttributeValues: expressionAttributeValues,
-    Limit: 1,
+    Limit: 1
   };
 
   const result = await docClient.send(new ScanCommand(scanParams));
@@ -800,10 +770,10 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
 
     const buildUpdateParams = (key, conditionAttr) => {
       const expressionAttributeNames = {
-        '#customer_phone': 'customer_phone',
+        '#customer_phone': 'customer_phone'
       };
       const expressionAttributeValues = {
-        ':phone': phoneNumber,
+        ':phone': phoneNumber
       };
 
       let updateExpression = 'SET #customer_phone = :phone';
@@ -825,7 +795,7 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
         Key: key,
         UpdateExpression: finalExpression,
         ExpressionAttributeNames: expressionAttributeNames,
-        ExpressionAttributeValues: expressionAttributeValues,
+        ExpressionAttributeValues: expressionAttributeValues
       };
 
       if (conditionAttr) {
@@ -856,7 +826,7 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
           invoiceNo,
           invoiceId,
           key,
-          error: error.message,
+          error: error.message
         });
         return false;
       }
@@ -867,7 +837,7 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
       updated = await tryKeyUpdate(
         {
           store_id: normalizedStoreId,
-          invoice_id: invoiceId.toString().trim(),
+          invoice_id: invoiceId.toString().trim()
         },
         'invoice_id'
       );
@@ -877,7 +847,7 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
       updated = await tryKeyUpdate(
         {
           store_id: normalizedStoreId,
-          invoice_no: invoiceNo.toString().trim(),
+          invoice_no: invoiceNo.toString().trim()
         },
         'invoice_no'
       );
@@ -892,14 +862,14 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
       logger.warn('Invoice record not found while updating customer phone', {
         storeId,
         invoiceNo,
-        invoiceId,
+        invoiceId
       });
       return false;
     }
 
     const updatedRecord = {
       ...record,
-      customer_phone: phoneNumber,
+      customer_phone: phoneNumber
     };
 
     if (normalizedPhone) {
@@ -908,7 +878,7 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
       delete updatedRecord.normalized_customer_phone;
     }
 
-    Object.keys(updatedRecord).forEach((key) => {
+    Object.keys(updatedRecord).forEach(key => {
       if (updatedRecord[key] === undefined) {
         delete updatedRecord[key];
       }
@@ -917,7 +887,7 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
     await docClient.send(
       new PutCommand({
         TableName: INVOICES_TABLE,
-        Item: updatedRecord,
+        Item: updatedRecord
       })
     );
 
@@ -927,7 +897,7 @@ async function updateInvoiceCustomerPhoneRecord(storeId, invoiceNo, invoiceId, p
       storeId,
       invoiceNo,
       invoiceId,
-      error: error.message,
+      error: error.message
     });
     return false;
   }
@@ -942,14 +912,14 @@ async function getStoreConfigById(storeId) {
     const response = await docClient.send(
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId },
+        Key: { store_id: storeId }
       })
     );
     return response.Item || null;
   } catch (error) {
     logger.error('Error fetching store WhatsApp config', {
       storeId,
-      error: error.message,
+      error: error.message
     });
     throw error;
   }
@@ -967,7 +937,7 @@ function buildStoreContextFromItem(item) {
     verifiedName: item.verified_name || null,
     accessToken: item.access_token || null,
     whatsappApiUrl: item.whatsapp_api_url || null,
-    displayPhoneNumber: item.waba_mobile_number || null,
+    displayPhoneNumber: item.waba_mobile_number || null
   };
 }
 
@@ -978,10 +948,10 @@ async function queryStoreByPhoneNumber(phoneNumberId, wabaId) {
 
   const keyExpressionParts = ['#phone_number_id = :phoneNumberId'];
   const expressionAttributeNames = {
-    '#phone_number_id': 'phone_number_id',
+    '#phone_number_id': 'phone_number_id'
   };
   const expressionAttributeValues = {
-    ':phoneNumberId': phoneNumberId,
+    ':phoneNumberId': phoneNumberId
   };
 
   if (wabaId) {
@@ -998,7 +968,7 @@ async function queryStoreByPhoneNumber(phoneNumberId, wabaId) {
         KeyConditionExpression: keyExpressionParts.join(' AND '),
         ExpressionAttributeNames: expressionAttributeNames,
         ExpressionAttributeValues: expressionAttributeValues,
-        Limit: 1,
+        Limit: 1
       })
     );
 
@@ -1008,13 +978,13 @@ async function queryStoreByPhoneNumber(phoneNumberId, wabaId) {
       storePhoneIndexUnavailable = true;
       logger.warn('Store phone lookup index unavailable, falling back to table scan', {
         indexName: STORE_CONFIG_PHONE_INDEX,
-        error: error.message,
+        error: error.message
       });
     } else {
       logger.error('Failed to query store config by phone number', {
         phoneNumberId,
         wabaId,
-        error: error.message,
+        error: error.message
       });
     }
     return null;
@@ -1031,7 +1001,7 @@ async function scanStoreConfig(filterExpression, expressionNames, expressionValu
         FilterExpression: filterExpression,
         ExpressionAttributeNames: expressionNames,
         ExpressionAttributeValues: expressionValues,
-        ExclusiveStartKey: lastEvaluatedKey,
+        ExclusiveStartKey: lastEvaluatedKey
       })
     );
 
@@ -1056,7 +1026,7 @@ async function resolveStoreContext({ phoneNumberId, wabaId, displayPhoneNumber }
         candidateIds.add(normalized);
       }
     }
-    ['+', ''].forEach((prefix) => {
+    ['+', ''].forEach(prefix => {
       if (phoneNumberId && phoneNumberId.startsWith(prefix + DEFAULT_COUNTRY_CODE)) {
         const trimmed = phoneNumberId.replace(prefix + DEFAULT_COUNTRY_CODE, '');
         if (trimmed) {
@@ -1130,7 +1100,7 @@ async function resolveStoreContext({ phoneNumberId, wabaId, displayPhoneNumber }
 
     if (!item) {
       const filterExpression =
-        filters.length === 1 ? filters[0] : filters.map((expr) => `(${expr})`).join(' OR ');
+        filters.length === 1 ? filters[0] : filters.map(expr => `(${expr})`).join(' OR ');
       item = await scanStoreConfig(filterExpression, expressionNames, expressionValues);
     }
 
@@ -1155,7 +1125,7 @@ async function resolveStoreContext({ phoneNumberId, wabaId, displayPhoneNumber }
       phoneNumberId,
       wabaId,
       displayPhoneNumber,
-      error: error.message,
+      error: error.message
     });
     return null;
   }
@@ -1179,7 +1149,7 @@ async function persistWhatsAppMessage({
   mediaId = null,
   mediaMetadata = null,
   locationMetadata = null,
-  orderMetadata = null,
+  orderMetadata = null
 }) {
   if (!storeId || !customerPhone || !timestamp) {
     return;
@@ -1202,8 +1172,8 @@ async function persistWhatsAppMessage({
       ? [
           {
             status,
-            timestamp,
-          },
+            timestamp
+          }
         ]
       : [],
     phone_number_id: metadata.phoneNumberId || null,
@@ -1217,7 +1187,7 @@ async function persistWhatsAppMessage({
     media_id: mediaId || null,
     media_metadata: mediaMetadata || null,
     location_metadata: locationMetadata || null,
-    order_metadata: orderMetadata || null,
+    order_metadata: orderMetadata || null
   };
 
   if (!item.body) {
@@ -1279,7 +1249,7 @@ async function persistWhatsAppMessage({
     await docClient.send(
       new PutCommand({
         TableName: WHATSAPP_MESSAGES_TABLE,
-        Item: item,
+        Item: item
       })
     );
   } catch (error) {
@@ -1288,12 +1258,18 @@ async function persistWhatsAppMessage({
       customerPhone,
       direction,
       messageId,
-      error: error.message,
+      error: error.message
     });
   }
 }
 
-async function appendMessageStatus({ storeId, customerPhone, messageId, status, statusTimestamp }) {
+async function appendMessageStatus({
+  storeId,
+  customerPhone,
+  messageId,
+  status,
+  statusTimestamp
+}) {
   if (!storeId || !customerPhone || !messageId) {
     return;
   }
@@ -1307,14 +1283,14 @@ async function appendMessageStatus({ storeId, customerPhone, messageId, status, 
         ExpressionAttributeValues: {
           ':phone': customerPhone,
           ':store': storeId,
-          ':messageId': messageId,
+          ':messageId': messageId
         },
         ExpressionAttributeNames: {
           '#store_id': 'store_id',
-          '#message_id': 'message_id',
+          '#message_id': 'message_id'
         },
         FilterExpression: '#store_id = :store AND #message_id = :messageId',
-        Limit: 1,
+        Limit: 1
       })
     );
 
@@ -1325,7 +1301,7 @@ async function appendMessageStatus({ storeId, customerPhone, messageId, status, 
         storeId,
         customerPhone,
         messageId,
-        status,
+        status
       });
       return;
     }
@@ -1335,24 +1311,24 @@ async function appendMessageStatus({ storeId, customerPhone, messageId, status, 
         TableName: WHATSAPP_MESSAGES_TABLE,
         Key: {
           store_id: target.store_id,
-          timestamp: target.timestamp,
+          timestamp: target.timestamp
         },
         UpdateExpression:
           'SET #status = :status, #history = list_append(if_not_exists(#history, :empty), :entry)',
         ExpressionAttributeNames: {
           '#status': 'status',
-          '#history': 'status_history',
+          '#history': 'status_history'
         },
         ExpressionAttributeValues: {
           ':status': status,
           ':entry': [
             {
               status,
-              timestamp: statusTimestamp,
-            },
+              timestamp: statusTimestamp
+            }
           ],
-          ':empty': [],
-        },
+          ':empty': []
+        }
       })
     );
   } catch (error) {
@@ -1361,7 +1337,7 @@ async function appendMessageStatus({ storeId, customerPhone, messageId, status, 
       customerPhone,
       messageId,
       status,
-      error: error.message,
+      error: error.message
     });
   }
 }
@@ -1378,10 +1354,10 @@ function extractInboundMessageDetails(message) {
     message?.interactive?.button_reply?.title,
     message?.interactive?.list_reply?.id,
     message?.interactive?.list_reply?.title,
-    message?.text?.body,
+    message?.text?.body
   ]
-    .filter((value) => typeof value === 'string')
-    .map((value) => value.trim())
+    .filter(value => typeof value === 'string')
+    .map(value => value.trim())
     .filter(Boolean);
   let mediaId = null;
   let mediaMetadata = null;
@@ -1395,7 +1371,7 @@ function extractInboundMessageDetails(message) {
         id: mediaId,
         mimeType: message.image?.mime_type || null,
         sha256: message.image?.sha256 || null,
-        caption: message.image?.caption || null,
+        caption: message.image?.caption || null
       };
       text = message.image?.caption || '[Photo]';
       break;
@@ -1407,7 +1383,7 @@ function extractInboundMessageDetails(message) {
         mimeType: message.video?.mime_type || null,
         sha256: message.video?.sha256 || null,
         caption: message.video?.caption || null,
-        thumbnail: message.video?.thumbnail || null,
+        thumbnail: message.video?.thumbnail || null
       };
       text = message.video?.caption || '[Video]';
       break;
@@ -1418,7 +1394,7 @@ function extractInboundMessageDetails(message) {
         id: mediaId,
         mimeType: message.audio?.mime_type || null,
         sha256: message.audio?.sha256 || null,
-        voice: message.audio?.voice ?? null,
+        voice: message.audio?.voice ?? null
       };
       text = '[Audio message]';
       break;
@@ -1430,9 +1406,11 @@ function extractInboundMessageDetails(message) {
         mimeType: message.document?.mime_type || null,
         sha256: message.document?.sha256 || null,
         fileName: message.document?.filename || null,
-        caption: message.document?.caption || null,
+        caption: message.document?.caption || null
       };
-      text = message.document?.filename ? `Document: ${message.document.filename}` : '[Document]';
+      text = message.document?.filename
+        ? `Document: ${message.document.filename}`
+        : '[Document]';
       break;
     }
     case 'sticker': {
@@ -1441,7 +1419,7 @@ function extractInboundMessageDetails(message) {
         id: mediaId,
         mimeType: message.sticker?.mime_type || null,
         sha256: message.sticker?.sha256 || null,
-        animated: message.sticker?.animated ?? null,
+        animated: message.sticker?.animated ?? null
       };
       text = '[Sticker]';
       break;
@@ -1458,9 +1436,11 @@ function extractInboundMessageDetails(message) {
             : Number(message.location?.longitude) || null,
         name: message.location?.name || null,
         address: message.location?.address || null,
-        url: message.location?.url || null,
+        url: message.location?.url || null
       };
-      text = locationMetadata.name ? `Location: ${locationMetadata.name}` : 'Shared a location';
+      text = locationMetadata.name
+        ? `Location: ${locationMetadata.name}`
+        : 'Shared a location';
       break;
     }
     case 'order': {
@@ -1481,14 +1461,18 @@ function extractInboundMessageDetails(message) {
         const price = Number(item?.item_price || 0) || 0;
         return sum + quantity * price;
       }, 0);
-      const currency = items.find((item) => item?.currency)?.currency || '';
+      const currency = items.find(item => item?.currency)?.currency || '';
       if (total > 0) {
         lines.push(`Estimated total: ${currency ? `${currency} ` : ''}${total}`);
       }
 
-      items.forEach((item) => {
+      items.forEach(item => {
         const quantity = Number(item?.quantity || 0) || 1;
-        const label = item?.name || item?.product_retailer_id || item?.item_id || 'Item';
+        const label =
+          item?.name ||
+          item?.product_retailer_id ||
+          item?.item_id ||
+          'Item';
         const price = item?.item_price ? ` @ ${item.item_price}` : '';
         lines.push(`- ${quantity} x ${label}${price}`);
       });
@@ -1497,7 +1481,7 @@ function extractInboundMessageDetails(message) {
       orderMetadata = {
         catalog_id: order.catalog_id || null,
         text: orderText || null,
-        product_items: items,
+        product_items: items
       };
       break;
     }
@@ -1515,7 +1499,7 @@ function extractInboundMessageDetails(message) {
     mediaId,
     mediaMetadata,
     locationMetadata,
-    orderMetadata,
+    orderMetadata
   };
 }
 
@@ -1531,22 +1515,26 @@ const buildOrderSummaryText = (orderText, items) => {
     const price = Number(item?.item_price || 0) || 0;
     return sum + quantity * price;
   }, 0);
-  const currency = items.find((item) => item?.currency)?.currency || '';
+  const currency = items.find(item => item?.currency)?.currency || '';
   if (total > 0) {
     lines.push(`Estimated total: ${currency ? `${currency} ` : ''}${total}`);
   }
-  items.forEach((item) => {
+  items.forEach(item => {
     const quantity = Number(item?.quantity || 0) || 1;
-    const label = item?.name || item?.product_retailer_id || item?.item_id || 'Item';
+    const label =
+      item?.name ||
+      item?.product_retailer_id ||
+      item?.item_id ||
+      'Item';
     const price = item?.item_price ? ` @ ${item.item_price}` : '';
     lines.push(`- ${quantity} x ${label}${price}`);
   });
   return lines.join('\n');
 };
 
-const normalizeMatchText = (value) => (value || '').toString().toLowerCase().trim();
+const normalizeMatchText = value => (value || '').toString().toLowerCase().trim();
 
-const buildPayloadFromTitle = (title) => {
+const buildPayloadFromTitle = title => {
   if (!title) {
     return '';
   }
@@ -1571,14 +1559,16 @@ const matchKeywordTrigger = (triggerConfig, inboundText) => {
     requestedMatchType === 'any'
       ? 'any'
       : requestedMatchType === 'contains'
-        ? 'contains'
-        : 'equals';
-  const keywords = triggerConfig.keywords.map((item) => normalizeMatchText(item)).filter(Boolean);
+      ? 'contains'
+      : 'equals';
+  const keywords = triggerConfig.keywords
+    .map(item => normalizeMatchText(item))
+    .filter(Boolean);
   if (matchType === 'equals') {
     if (!keywords.length) {
       return false;
     }
-    return keywords.some((keyword) => normalizedMessage === keyword);
+    return keywords.some(keyword => normalizedMessage === keyword);
   }
   if (matchType === 'any') {
     return true;
@@ -1587,7 +1577,7 @@ const matchKeywordTrigger = (triggerConfig, inboundText) => {
     if (!keywords.length) {
       return false;
     }
-    return keywords.some((keyword) => normalizedMessage.includes(keyword));
+    return keywords.some(keyword => normalizedMessage.includes(keyword));
   }
   return false;
 };
@@ -1607,7 +1597,7 @@ const findWorkflowMatch = (workflows, inboundText) => {
     }
     const spec = workflow.spec || {};
     const nodes = Array.isArray(spec.nodes) ? spec.nodes : [];
-    const triggerNode = nodes.find((node) => node?.type === 'TRIGGER');
+    const triggerNode = nodes.find(node => node?.type === 'TRIGGER');
     const triggerConfig = triggerNode?.config || {};
     const triggerType = String(triggerConfig.trigger_type || '').toLowerCase();
     if (triggerType !== 'keyword') {
@@ -1621,8 +1611,8 @@ const findWorkflowMatch = (workflows, inboundText) => {
       requestedMatchType === 'any'
         ? 'any'
         : requestedMatchType === 'contains'
-          ? 'contains'
-          : 'equals';
+        ? 'contains'
+        : 'equals';
     if (matchType === 'equals') {
       exactMatches.push(workflow);
     } else if (matchType === 'any') {
@@ -1645,15 +1635,15 @@ const findWorkflowMatch = (workflows, inboundText) => {
   return null;
 };
 
-const pickReplyMessageNode = (spec) => {
+const pickReplyMessageNode = spec => {
   const nodes = Array.isArray(spec?.nodes) ? spec.nodes : [];
-  const messageNodes = nodes.filter((node) => node?.type === 'MESSAGE');
+  const messageNodes = nodes.filter(node => node?.type === 'MESSAGE');
   if (!messageNodes.length) {
     return null;
   }
   return (
-    messageNodes.find((node) => String(node?.name || '').includes('Matched')) ||
-    messageNodes.find((node) => String(node?.name || '').includes('Auto reply')) ||
+    messageNodes.find(node => String(node?.name || '').includes('Matched')) ||
+    messageNodes.find(node => String(node?.name || '').includes('Auto reply')) ||
     messageNodes[0]
   );
 };
@@ -1681,7 +1671,7 @@ const applyVariablesToText = (text, variables, context) => {
     return text || '';
   }
   let nextText = text;
-  variables.forEach((variable) => {
+  variables.forEach(variable => {
     const token = typeof variable.token === 'string' ? variable.token : '';
     if (!token) {
       return;
@@ -1699,7 +1689,7 @@ const resolveAutomationText = (messageConfig, variableContext) =>
     variableContext
   );
 
-const parseDataUrl = (dataUrl) => {
+const parseDataUrl = dataUrl => {
   if (!dataUrl || typeof dataUrl !== 'string') {
     return null;
   }
@@ -1709,7 +1699,7 @@ const parseDataUrl = (dataUrl) => {
   }
   return {
     mimeType: match[1],
-    base64: match[2],
+    base64: match[2]
   };
 };
 
@@ -1729,14 +1719,14 @@ const uploadAutomationAttachment = async ({ attachment, accessToken, phoneNumber
   formData.append('messaging_product', 'whatsapp');
   formData.append('file', buffer, {
     filename,
-    contentType: mimeType,
+    contentType: mimeType
   });
   const uploadResponse = await axios.post(uploadUrl, formData, {
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      ...formData.getHeaders(),
+      ...formData.getHeaders()
     },
-    maxBodyLength: Infinity,
+    maxBodyLength: Infinity
   });
   return uploadResponse.data?.id || null;
 };
@@ -1746,7 +1736,7 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
     return null;
   }
   const messageType = String(messageConfig.message_type || 'plain').toLowerCase();
-  const sanitizeButtonTitle = (title) => {
+  const sanitizeButtonTitle = title => {
     const cleaned = String(title || '')
       .replace(/[↩↪→←]/g, '')
       .trim();
@@ -1756,12 +1746,12 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
   if (messageType === 'buttons') {
     const buttons = Array.isArray(messageConfig.buttons) ? messageConfig.buttons : [];
     const formattedButtons = buttons
-      .map((button) => ({
+      .map(button => ({
         type: 'reply',
         reply: {
           id: button.payload || buildPayloadFromTitle(button.title),
-          title: sanitizeButtonTitle(button.title),
-        },
+          title: sanitizeButtonTitle(button.title)
+        }
       }))
       .slice(0, 3);
     return {
@@ -1769,8 +1759,8 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
       interactive: {
         type: 'button',
         body: { text: resolvedText || 'Please choose an option.' },
-        action: { buttons: formattedButtons },
-      },
+        action: { buttons: formattedButtons }
+      }
     };
   }
   if (messageType === 'list') {
@@ -1782,29 +1772,31 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
         body: { text: resolvedText || 'Please choose an option.' },
         action: {
           button: messageConfig.button_text || 'View options',
-          sections: sections.map((section) => ({
+          sections: sections.map(section => ({
             title: section.title || 'Options',
-            rows: (section.rows || []).map((row) => ({
+            rows: (section.rows || []).map(row => ({
               id: row.payload || buildPayloadFromTitle(row.title),
               title: row.title || 'Option',
-              description: row.description || undefined,
-            })),
-          })),
-        },
-      },
+              description: row.description || undefined
+            }))
+          }))
+        }
+      }
     };
   }
   if (messageType === 'product_list') {
-    const items = Array.isArray(messageConfig.product_items) ? messageConfig.product_items : [];
+    const items = Array.isArray(messageConfig.product_items)
+      ? messageConfig.product_items
+      : [];
     const catalogId = messageConfig.catalog_id || messageConfig.catalogId || null;
     if (!catalogId || items.length === 0) {
       return null;
     }
     const productItems = items
-      .map((item) => ({
-        product_retailer_id: item.product_retailer_id || item.id || '',
+      .map(item => ({
+        product_retailer_id: item.product_retailer_id || item.id || ''
       }))
-      .filter((item) => item.product_retailer_id);
+      .filter(item => item.product_retailer_id);
     if (productItems.length === 0) {
       return null;
     }
@@ -1820,7 +1812,7 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
         type: 'product_list',
         header: {
           type: 'text',
-          text: headerText,
+          text: headerText
         },
         body: { text: resolvedText || 'Browse products' },
         action: {
@@ -1828,11 +1820,11 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
           sections: [
             {
               title: messageConfig.section_title || 'All Products',
-              product_items: productItems,
-            },
-          ],
-        },
-      },
+              product_items: productItems
+            }
+          ]
+        }
+      }
     };
   }
   if (messageType === 'image') {
@@ -1840,8 +1832,8 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
       type: 'image',
       image: {
         link: messageConfig.media_url,
-        caption: resolvedText || undefined,
-      },
+        caption: resolvedText || undefined
+      }
     };
   }
   if (messageType === 'video') {
@@ -1849,14 +1841,14 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
       type: 'video',
       video: {
         link: messageConfig.media_url,
-        caption: resolvedText || undefined,
-      },
+        caption: resolvedText || undefined
+      }
     };
   }
   if (messageType === 'template') {
     const components = Array.isArray(messageConfig.components) ? messageConfig.components : null;
     const variableValues = messageConfig.variables
-      ? Object.values(messageConfig.variables).map((value) => String(value ?? ''))
+      ? Object.values(messageConfig.variables).map(value => String(value ?? ''))
       : [];
     const resolvedComponents =
       components ||
@@ -1864,11 +1856,11 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
         ? [
             {
               type: 'body',
-              parameters: variableValues.map((value) => ({
+              parameters: variableValues.map(value => ({
                 type: 'text',
-                text: value,
-              })),
-            },
+                text: value
+              }))
+            }
           ]
         : undefined);
     return {
@@ -1876,13 +1868,13 @@ const buildAutomationMessagePayload = (messageConfig, _inboundMessageId, variabl
       template: {
         name: messageConfig.template_id || messageConfig.template_name,
         language: { code: messageConfig.language || 'en_US' },
-        ...(resolvedComponents ? { components: resolvedComponents } : {}),
-      },
+        ...(resolvedComponents ? { components: resolvedComponents } : {})
+      }
     };
   }
   return {
     type: 'text',
-    text: { body: resolvedText || '' },
+    text: { body: resolvedText || '' }
   };
 };
 
@@ -1905,14 +1897,14 @@ const sendWhatsAppMessageWithToken = async ({ to, payload, accessToken, apiUrl }
     {
       messaging_product: 'whatsapp',
       to,
-      ...payload,
+      ...payload
     },
     {
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+        'Content-Type': 'application/json'
       },
-      timeout: 10000,
+      timeout: 10000
     }
   );
   return response.data;
@@ -1936,7 +1928,7 @@ async function handleAutomationReply({
   customerPhone,
   inboundTexts,
   inboundMessageId,
-  metadata,
+  metadata
 }) {
   if (!storeId || !Array.isArray(inboundTexts) || inboundTexts.length === 0) {
     if (!storeId) {
@@ -1950,12 +1942,12 @@ async function handleAutomationReply({
       logger.info('Automation skipped: no workflows found', { storeId, customerPhone });
       return false;
     }
-    const liveWorkflows = workflows.filter((item) => item?.status === 'live');
+    const liveWorkflows = workflows.filter(item => item?.status === 'live');
     if (!liveWorkflows.length) {
       logger.info('Automation skipped: no live workflows', {
         storeId,
         customerPhone,
-        totalWorkflows: workflows.length,
+        totalWorkflows: workflows.length
       });
       return false;
     }
@@ -1964,7 +1956,7 @@ async function handleAutomationReply({
       logger.info('Automation skipped: no live workflow match', {
         storeId,
         customerPhone,
-        inboundText: inboundTexts[0],
+        inboundText: inboundTexts[0]
       });
       return false;
     }
@@ -1974,7 +1966,7 @@ async function handleAutomationReply({
       workflowId: matched.workflow_id,
       workflowName: matched.name,
       customerPhone,
-      inboundText: matchedText,
+      inboundText: matchedText
     });
     const messageNode = pickReplyMessageNode(matched.spec || {});
     const messageConfig = messageNode?.config || null;
@@ -1994,35 +1986,34 @@ async function handleAutomationReply({
             ...effectiveMetadata,
             accessToken: effectiveMetadata?.accessToken || storeConfig.access_token || null,
             phoneNumberId: effectiveMetadata?.phoneNumberId || storeConfig.phone_number_id || null,
-            whatsappApiUrl:
-              effectiveMetadata?.whatsappApiUrl || storeConfig.whatsapp_api_url || null,
+            whatsappApiUrl: effectiveMetadata?.whatsappApiUrl || storeConfig.whatsapp_api_url || null,
             wabaId: effectiveMetadata?.wabaId || storeConfig.waba_id || null,
             displayPhoneNumber:
-              effectiveMetadata?.displayPhoneNumber || storeConfig.waba_mobile_number || null,
+              effectiveMetadata?.displayPhoneNumber || storeConfig.waba_mobile_number || null
           };
         }
       } catch (error) {
         logger.warn('Failed to resolve store config for automation metadata', {
           storeId,
           workflowId: matched.workflow_id,
-          error: error.message,
+          error: error.message
         });
       }
     }
 
     const apiUrl = buildWhatsAppApiUrl(effectiveMetadata || {});
-    const sendAutomationPayload = async (payload) => {
+    const sendAutomationPayload = async payload => {
       if (effectiveMetadata?.accessToken && apiUrl) {
         return sendWhatsAppMessageWithToken({
           to: customerPhone,
           payload,
           accessToken: effectiveMetadata.accessToken,
-          apiUrl,
+          apiUrl
         });
       }
       logger.warn('Missing store access token or api url, using default token.', {
         storeId,
-        customerPhone,
+        customerPhone
       });
       return whatsappService.sendMessage(customerPhone, payload);
     };
@@ -2036,7 +2027,7 @@ async function handleAutomationReply({
           logger.warn('Failed to resolve catalog id for automation product list', {
             storeId,
             workflowId: matched.workflow_id,
-            error: error.message,
+            error: error.message
           });
         }
       }
@@ -2047,7 +2038,7 @@ async function handleAutomationReply({
           storeId,
           workflowId: matched.workflow_id,
           hasCatalogId: Boolean(effectiveCatalogId),
-          productCount: items.length,
+          productCount: items.length
         });
         return false;
       }
@@ -2060,10 +2051,10 @@ async function handleAutomationReply({
             catalogId: effectiveCatalogId,
             accessToken: effectiveMetadata.accessToken,
             graphVersion: process.env.GRAPH_API_VERSION,
-            limit: 200,
+            limit: 200
           });
           catalogRetailerIds = catalogItems
-            .map((item) => item?.product_retailer_id || '')
+            .map(item => item?.product_retailer_id || '')
             .filter(Boolean);
           catalogRetailerIdSet = new Set(catalogRetailerIds);
           logger.info('Catalog retailer ids fetched for automation', {
@@ -2071,31 +2062,29 @@ async function handleAutomationReply({
             workflowId: matched.workflow_id,
             catalogId: effectiveCatalogId,
             totalIds: catalogRetailerIds.length,
-            sample: catalogRetailerIds.slice(0, 5),
+            sample: catalogRetailerIds.slice(0, 5)
           });
         } catch (error) {
           logger.warn('Failed to validate catalog product ids for automation', {
             storeId,
             workflowId: matched.workflow_id,
-            error: error.message,
+            error: error.message
           });
         }
       } else {
         logger.warn('Automation product list validation skipped: missing access token', {
           storeId,
-          workflowId: matched.workflow_id,
+          workflowId: matched.workflow_id
         });
       }
 
       const resolvedText = resolveAutomationText(messageConfig, variableContext).trim();
       const productListBody =
-        (
-          messageConfig.product_list_body ||
+        (messageConfig.product_list_body ||
           messageConfig.productListBody ||
           messageConfig.list_body ||
           resolvedText ||
-          ''
-        )
+          '')
           .toString()
           .trim() || 'See our products!';
       const productListConfig = {
@@ -2103,10 +2092,10 @@ async function handleAutomationReply({
         catalog_id: effectiveCatalogId,
         text: productListBody,
         product_items: catalogRetailerIdSet
-          ? items.filter((item) =>
+          ? items.filter(item =>
               catalogRetailerIdSet.has(item?.product_retailer_id || item?.id || '')
             )
-          : items,
+          : items
       };
       const payload = buildAutomationMessagePayload(
         productListConfig,
@@ -2116,41 +2105,38 @@ async function handleAutomationReply({
       if (!payload) {
         logger.warn('Automation product list skipped: payload could not be built', {
           storeId,
-          workflowId: matched.workflow_id,
+          workflowId: matched.workflow_id
         });
         return false;
       }
       if (catalogRetailerIdSet) {
-        const requestedIds = items.map((item) => item?.product_retailer_id || '').filter(Boolean);
+        const requestedIds = items.map(item => item?.product_retailer_id || '').filter(Boolean);
         const matchedIds = productListConfig.product_items
-          .map((item) => item?.product_retailer_id || '')
+          .map(item => item?.product_retailer_id || '')
           .filter(Boolean);
-        const missingIds = requestedIds.filter((id) => !catalogRetailerIdSet.has(id));
+        const missingIds = requestedIds.filter(id => !catalogRetailerIdSet.has(id));
         if (missingIds.length > 0) {
           logger.warn('Automation product list contains invalid retailer ids', {
             storeId,
             workflowId: matched.workflow_id,
-            missingIds,
+            missingIds
           });
         }
         if (matchedIds.length === 0 && catalogRetailerIds?.length) {
           logger.warn('Automation product list replaced with catalog items', {
             storeId,
             workflowId: matched.workflow_id,
-            replacementCount: Math.min(30, catalogRetailerIds.length),
+            replacementCount: Math.min(30, catalogRetailerIds.length)
           });
           productListConfig.product_items = catalogRetailerIds
             .slice(0, 30)
-            .map((id) => ({ product_retailer_id: id }));
+            .map(id => ({ product_retailer_id: id }));
         }
         if (productListConfig.product_items.length === 0) {
-          logger.warn(
-            'Automation product list skipped: no valid retailer ids after catalog check',
-            {
-              storeId,
-              workflowId: matched.workflow_id,
-            }
-          );
+          logger.warn('Automation product list skipped: no valid retailer ids after catalog check', {
+            storeId,
+            workflowId: matched.workflow_id
+          });
           return false;
         }
       }
@@ -2162,7 +2148,7 @@ async function handleAutomationReply({
         catalogId: effectiveCatalogId,
         productCount: items.length,
         phoneNumberId: effectiveMetadata?.phoneNumberId || null,
-        payload: safePayload,
+        payload: safePayload
       });
       let response;
       try {
@@ -2177,7 +2163,7 @@ async function handleAutomationReply({
           workflowId: matched.workflow_id,
           status,
           error: graphMessage,
-          graphError,
+          graphError
         });
         return false;
       }
@@ -2197,8 +2183,8 @@ async function handleAutomationReply({
           metadata: {
             phoneNumberId: effectiveMetadata?.phoneNumberId || null,
             wabaId: effectiveMetadata?.wabaId || null,
-            displayPhoneNumber: effectiveMetadata?.displayPhoneNumber || null,
-          },
+            displayPhoneNumber: effectiveMetadata?.displayPhoneNumber || null
+          }
         });
       }
 
@@ -2206,16 +2192,12 @@ async function handleAutomationReply({
     }
     let payload = null;
 
-    if (
-      messageConfig?.attachment?.url &&
-      effectiveMetadata?.accessToken &&
-      effectiveMetadata?.phoneNumberId
-    ) {
+    if (messageConfig?.attachment?.url && effectiveMetadata?.accessToken && effectiveMetadata?.phoneNumberId) {
       try {
         const mediaId = await uploadAutomationAttachment({
           attachment: messageConfig.attachment,
           accessToken: effectiveMetadata.accessToken,
-          phoneNumberId: effectiveMetadata.phoneNumberId,
+          phoneNumberId: effectiveMetadata.phoneNumberId
         });
         if (mediaId) {
           const resolvedText = resolveAutomationText(messageConfig, variableContext);
@@ -2226,16 +2208,16 @@ async function handleAutomationReply({
               type: 'image',
               image: {
                 id: mediaId,
-                caption: resolvedText || undefined,
-              },
+                caption: resolvedText || undefined
+              }
             };
           } else {
             payload = {
               type: 'document',
               document: {
                 id: mediaId,
-                filename: messageConfig.attachment?.name || 'attachment',
-              },
+                filename: messageConfig.attachment?.name || 'attachment'
+              }
             };
           }
         }
@@ -2243,7 +2225,7 @@ async function handleAutomationReply({
         logger.warn('Failed to upload automation attachment', {
           storeId,
           workflowId: matched.workflow_id,
-          error: error.message,
+          error: error.message
         });
       }
     }
@@ -2271,8 +2253,8 @@ async function handleAutomationReply({
         metadata: {
           phoneNumberId: effectiveMetadata?.phoneNumberId || null,
           wabaId: effectiveMetadata?.wabaId || null,
-          displayPhoneNumber: effectiveMetadata?.displayPhoneNumber || null,
-        },
+          displayPhoneNumber: effectiveMetadata?.displayPhoneNumber || null
+        }
       });
     }
     return true;
@@ -2280,13 +2262,16 @@ async function handleAutomationReply({
     const status = error?.response?.status || null;
     const graphError = error?.response?.data?.error || null;
     const graphMessage =
-      graphError?.error_user_msg || graphError?.message || error?.message || 'Unknown error';
+      graphError?.error_user_msg ||
+      graphError?.message ||
+      error?.message ||
+      'Unknown error';
     logger.error('Failed to send automation reply', {
       storeId,
       customerPhone,
       status,
       error: graphMessage,
-      graphError,
+      graphError
     });
     return false;
   }
@@ -2305,7 +2290,9 @@ function getMessagePreviewText(item = {}) {
     case 'audio':
       return '🎵 Audio message';
     case 'document':
-      return item.media_metadata?.fileName ? `📄 ${item.media_metadata.fileName}` : '📄 Document';
+      return item.media_metadata?.fileName
+        ? `📄 ${item.media_metadata.fileName}`
+        : '📄 Document';
     case 'sticker':
       return '🩷 Sticker';
     case 'location':
@@ -2339,12 +2326,12 @@ function captureOnboardingSnapshot({ entry, change, fullBody }) {
     value,
     fallbackPhoneNumberId: undefined,
     fallbackWabaId: undefined,
-    fallbackDisplayNumber: undefined,
+    fallbackDisplayNumber: undefined
   });
 
   latestOnboardingSnapshot = {
     ...details,
-    capturedAt: new Date().toISOString(),
+    capturedAt: new Date().toISOString()
   };
   try {
     latestOnboardingRawPayload = JSON.parse(JSON.stringify(fullBody || {}));
@@ -2356,7 +2343,7 @@ function captureOnboardingSnapshot({ entry, change, fullBody }) {
   logger.info('Onboarding payload captured', {
     field,
     details: latestOnboardingSnapshot,
-    payload: value,
+    payload: value
   });
 
   return true;
@@ -2372,17 +2359,13 @@ function isOnboardingWebhookChange(field, value) {
     return false;
   }
 
-  const onboardingEvents = new Set([
-    'partner_added',
-    'partner_app_installed',
-    'onboarding_complete',
-  ]);
+  const onboardingEvents = new Set(['partner_added', 'partner_app_installed', 'onboarding_complete']);
   const onboardingFields = new Set([
     'account',
     'business_account',
     'app',
     'embedded_signup',
-    'account_update',
+    'account_update'
   ]);
 
   if (value.event && onboardingEvents.has(String(value.event).toLowerCase())) {
@@ -2405,7 +2388,7 @@ function isOnboardingWebhookChange(field, value) {
     value.account_setup,
     value.token,
     value.access_token,
-    value.webhook_verify_token,
+    value.webhook_verify_token
   ];
 
   if (indicators.some(Boolean)) {
@@ -2424,7 +2407,7 @@ function extractOnboardingDetails({
   value,
   fallbackPhoneNumberId,
   fallbackWabaId,
-  fallbackDisplayNumber,
+  fallbackDisplayNumber
 }) {
   const metadata = value?.metadata || {};
   const wabaInfo = value?.waba_info || {};
@@ -2432,7 +2415,12 @@ function extractOnboardingDetails({
   const primaryContact = contacts[0] || null;
   const contactProfile = primaryContact?.profile || {};
 
-  const wabaId = value?.waba_id || wabaInfo?.waba_id || fallbackWabaId || entry?.id || null;
+  const wabaId =
+    value?.waba_id ||
+    wabaInfo?.waba_id ||
+    fallbackWabaId ||
+    entry?.id ||
+    null;
 
   const phoneNumberId =
     value?.phone_number_id ||
@@ -2448,14 +2436,26 @@ function extractOnboardingDetails({
     fallbackDisplayNumber ||
     null;
 
-  const businessId = value?.business_id || wabaInfo?.owner_business_id || null;
+  const businessId =
+    value?.business_id ||
+    wabaInfo?.owner_business_id ||
+    null;
 
-  const appId = value?.app_id || value?.partner_app_id || null;
+  const appId =
+    value?.app_id ||
+    value?.partner_app_id ||
+    null;
 
-  const verifiedName = value?.verified_name || contactProfile?.name || null;
+  const verifiedName =
+    value?.verified_name ||
+    contactProfile?.name ||
+    null;
 
   const businessPhone =
-    value?.business_phone || metadata?.display_phone_number || primaryContact?.wa_id || null;
+    value?.business_phone ||
+    metadata?.display_phone_number ||
+    primaryContact?.wa_id ||
+    null;
 
   return {
     wabaId,
@@ -2467,7 +2467,7 @@ function extractOnboardingDetails({
     displayPhoneNumber,
     webhookVerifyToken: value?.webhook_verify_token || value?.token || null,
     eventType: value?.event || null,
-    accessToken: value?.access_token || null,
+    accessToken: value?.access_token || null
   };
 }
 
@@ -2492,7 +2492,7 @@ async function fetchWabaPhoneNumbers({ wabaId, accessToken, version }) {
     'quality_rating',
     'search_visibility',
     'platform_type',
-    'code_verification_status',
+    'code_verification_status'
   ].join(',');
 
   const url = `https://graph.facebook.com/${graphVersion}/${wabaId}/phone_numbers`;
@@ -2501,22 +2501,22 @@ async function fetchWabaPhoneNumbers({ wabaId, accessToken, version }) {
     const response = await axios.get(url, {
       params: {
         fields,
-        access_token: tokenToUse,
+        access_token: tokenToUse
       },
-      timeout: 10000,
+      timeout: 10000
     });
 
     const payload = response.data || {};
     logger.info('Fetched WABA phone numbers', {
       wabaId,
-      count: Array.isArray(payload.data) ? payload.data.length : 0,
+      count: Array.isArray(payload.data) ? payload.data.length : 0
     });
     return payload;
   } catch (error) {
     logger.error('Failed to fetch WABA phone numbers', {
       wabaId,
       status: error.response?.status,
-      message: error.response?.data?.error?.message || error.message,
+      message: error.response?.data?.error?.message || error.message
     });
     throw error;
   }
@@ -2530,7 +2530,7 @@ function formatWebhookConfigResponse(config = {}) {
     verifyTokenSet: Boolean(config.verify_token),
     appSecretSet: Boolean(config.app_secret),
     lastUpdatedAt: config.updated_at || null,
-    lastValidatedAt: config.last_validated_at || null,
+    lastValidatedAt: config.last_validated_at || null
   };
 }
 
@@ -2551,12 +2551,12 @@ async function verifyWebhookToken(token) {
       FilterExpression: '#cfg.#verify_token = :token',
       ExpressionAttributeNames: {
         '#cfg': 'webhook_config',
-        '#verify_token': 'verify_token',
+        '#verify_token': 'verify_token'
       },
       ExpressionAttributeValues: {
-        ':token': token,
+        ':token': token
       },
-      Limit: 1,
+      Limit: 1
     });
 
     const result = await docClient.send(command);
@@ -2576,20 +2576,18 @@ async function touchWebhookValidation(storeId) {
   }
 
   try {
-    await docClient.send(
-      new UpdateCommand({
-        TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId },
-        UpdateExpression: 'SET #cfg.#last_validated_at = :ts',
-        ExpressionAttributeNames: {
-          '#cfg': 'webhook_config',
-          '#last_validated_at': 'last_validated_at',
-        },
-        ExpressionAttributeValues: {
-          ':ts': new Date().toISOString(),
-        },
-      })
-    );
+    await docClient.send(new UpdateCommand({
+      TableName: STORE_CONFIG_TABLE,
+      Key: { store_id: storeId },
+      UpdateExpression: 'SET #cfg.#last_validated_at = :ts',
+      ExpressionAttributeNames: {
+        '#cfg': 'webhook_config',
+        '#last_validated_at': 'last_validated_at'
+      },
+      ExpressionAttributeValues: {
+        ':ts': new Date().toISOString()
+      }
+    }));
   } catch (error) {
     logger.error('Error updating webhook validation timestamp', { storeId, error: error.message });
   }
@@ -2615,7 +2613,7 @@ function coerceToArray(value) {
 
 function normalizeTemplateParameterList(source, defaultType = 'text') {
   return coerceToArray(source)
-    .map((item) => {
+    .map(item => {
       if (item === undefined || item === null) {
         return null;
       }
@@ -2633,7 +2631,7 @@ function normalizeTemplateParameterList(source, defaultType = 'text') {
         if (cloned.payload !== undefined) {
           return {
             type: 'payload',
-            payload: String(cloned.payload),
+            payload: String(cloned.payload)
           };
         }
 
@@ -2652,14 +2650,14 @@ function normalizeTemplateParameterList(source, defaultType = 'text') {
         if (typeof cloned.text === 'string') {
           return {
             type: defaultType,
-            text: cloned.text,
+            text: cloned.text
           };
         }
       }
 
       return {
         type: defaultType,
-        text: String(item),
+        text: String(item)
       };
     })
     .filter(Boolean);
@@ -2670,19 +2668,24 @@ function normalizeButtonComponent(input) {
     return null;
   }
 
-  const indices = [input.index, input.buttonIndex, input.button_index, input.id, input.position];
-  const rawIndex = indices.find((value) => value !== undefined && value !== null);
+  const indices = [
+    input.index,
+    input.buttonIndex,
+    input.button_index,
+    input.id,
+    input.position
+  ];
+  const rawIndex = indices.find(value => value !== undefined && value !== null);
   const parsedIndex = Number.parseInt(rawIndex, 10);
   const safeIndex = Number.isFinite(parsedIndex) ? parsedIndex : 0;
 
   const subType =
-    [input.subType, input.sub_type, input.buttonSubType, input.button_sub_type].find(
-      (value) => typeof value === 'string' && value.trim().length > 0
-    ) || undefined;
+    [input.subType, input.sub_type, input.buttonSubType, input.button_sub_type]
+      .find(value => typeof value === 'string' && value.trim().length > 0) || undefined;
 
   const component = {
     type: 'button',
-    index: String(safeIndex),
+    index: String(safeIndex)
   };
 
   if (subType) {
@@ -2694,14 +2697,11 @@ function normalizeButtonComponent(input) {
 
   if (typeof subType === 'string' && subType.toLowerCase() === 'copy_code') {
     const couponCodeCandidate = Array.isArray(buttonInputParameters)
-      ? buttonInputParameters.find(
-          (value) => value !== undefined && value !== null && String(value).trim().length > 0
-        )
+      ? buttonInputParameters.find(value => value !== undefined && value !== null && String(value).trim().length > 0)
       : buttonInputParameters;
-    const normalizedCouponCode =
-      couponCodeCandidate !== undefined && couponCodeCandidate !== null
-        ? String(couponCodeCandidate).trim()
-        : '';
+    const normalizedCouponCode = couponCodeCandidate !== undefined && couponCodeCandidate !== null
+      ? String(couponCodeCandidate).trim()
+      : '';
 
     if (!normalizedCouponCode) {
       return null;
@@ -2710,8 +2710,8 @@ function normalizeButtonComponent(input) {
     parameters = [
       {
         type: 'coupon_code',
-        coupon_code: normalizedCouponCode,
-      },
+        coupon_code: normalizedCouponCode
+      }
     ];
   } else {
     parameters = normalizeTemplateParameterList(buttonInputParameters, 'text');
@@ -2721,8 +2721,8 @@ function normalizeButtonComponent(input) {
     parameters = [
       {
         type: 'payload',
-        payload: String(input.payload),
-      },
+        payload: String(input.payload)
+      }
     ];
   }
 
@@ -2730,8 +2730,8 @@ function normalizeButtonComponent(input) {
     parameters = [
       {
         type: 'text',
-        text: String(input.text),
-      },
+        text: String(input.text)
+      }
     ];
   }
 
@@ -2748,7 +2748,7 @@ function parseTemplateParameters(templateParams) {
     body: [],
     footer: [],
     buttons: [],
-    components: [],
+    components: []
   };
 
   if (templateParams === undefined || templateParams === null) {
@@ -2790,13 +2790,15 @@ function parseTemplateParameters(templateParams) {
   result.footer = normalizeTemplateParameterList(footerSource, 'text');
 
   if (Array.isArray(templateParams.buttons)) {
-    result.buttons = templateParams.buttons.map(normalizeButtonComponent).filter(Boolean);
+    result.buttons = templateParams.buttons
+      .map(normalizeButtonComponent)
+      .filter(Boolean);
   }
 
   if (Array.isArray(templateParams.components)) {
     result.components = templateParams.components
-      .filter((component) => component && typeof component === 'object')
-      .map((component) => ({ ...component }));
+      .filter(component => component && typeof component === 'object')
+      .map(component => ({ ...component }));
   }
 
   return result;
@@ -2818,28 +2820,25 @@ async function sendMessage(
   if (!templateName) {
     throw new Error('WhatsApp template name is required');
   }
-
+  
   // Ensure phone number is properly formatted for WhatsApp API
   const formattedPhone = formatPhoneToE164(to);
   if (!formattedPhone) {
     throw new Error('Invalid phone number provided.');
   }
-
+  
   // Default template configuration
   const defaultTemplate = {
     name: templateName,
     language: {
-      code: templateLanguage || 'en_US',
-    },
+      code: templateLanguage || 'en_US'
+    }
   };
 
   // Build component list dynamically so header/body/button combinations work
   const templateComponents = [];
   const parsedTemplateParams = parseTemplateParameters(templateParams);
-  const headerParametersFromOptions = normalizeTemplateParameterList(
-    options?.headerParameters,
-    'text'
-  );
+  const headerParametersFromOptions = normalizeTemplateParameterList(options?.headerParameters, 'text');
 
   let headerComponentParameters = [];
 
@@ -2852,24 +2851,27 @@ async function sendMessage(
     headerComponentParameters = [
       {
         type: 'image',
-        image: imagePayload,
-      },
+        image: imagePayload
+      }
     ];
   } else {
-    headerComponentParameters = [...headerParametersFromOptions, ...parsedTemplateParams.header];
+    headerComponentParameters = [
+      ...headerParametersFromOptions,
+      ...parsedTemplateParams.header
+    ];
   }
 
   if (headerComponentParameters.length > 0) {
     templateComponents.push({
       type: 'header',
-      parameters: headerComponentParameters,
+      parameters: headerComponentParameters
     });
   }
 
   if (parsedTemplateParams.body.length > 0) {
     templateComponents.push({
       type: 'body',
-      parameters: parsedTemplateParams.body,
+      parameters: parsedTemplateParams.body
     });
   }
 
@@ -2888,20 +2890,20 @@ async function sendMessage(
   if (templateComponents.length > 0) {
     defaultTemplate.components = templateComponents;
   }
-
+  
   const payload = {
     messaging_product: 'whatsapp',
     to: formattedPhone,
     type: 'template',
-    template: defaultTemplate,
+    template: defaultTemplate
   };
 
-  logger.info('Sending WhatsApp message', {
+  logger.info('Sending WhatsApp message', { 
     to,
     formattedTo: formattedPhone,
-    templateName,
+    templateName, 
     templateLanguage,
-    payload: JSON.stringify(payload, null, 2),
+    payload: JSON.stringify(payload, null, 2)
   });
 
   try {
@@ -2909,11 +2911,11 @@ async function sendMessage(
       url: whatsappApiUrl,
       method: 'post',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
       },
       timeout: 20000,
-      data: payload,
+      data: payload
     });
     return response.data;
   } catch (error) {
@@ -2923,7 +2925,7 @@ async function sendMessage(
       status: error.response?.status,
       statusText: error.response?.statusText,
       errorData: error.response?.data,
-      payload: JSON.stringify(payload, null, 2),
+      payload: JSON.stringify(payload, null, 2)
     });
     throw error;
   }
@@ -2941,7 +2943,7 @@ function buildUserContextFromStoreConfig(storeConfig, fallback = {}) {
     access_token: storeConfig.access_token || fallback.access_token || null,
     phone_number_id: storeConfig.phone_number_id || fallback.phone_number_id || null,
     waba_id: storeConfig.waba_id || fallback.waba_id || null,
-    waba_mobile_number: storeConfig.waba_mobile_number || fallback.waba_mobile_number || null,
+    waba_mobile_number: storeConfig.waba_mobile_number || fallback.waba_mobile_number || null
   };
 }
 
@@ -2957,7 +2959,7 @@ async function executeResendAttempt(attempt) {
     await resendService.updateResendAttemptStatus({
       resendAttemptId,
       status: 'RUNNING',
-      expectedStatus: 'SCHEDULED',
+      expectedStatus: 'SCHEDULED'
     });
   } catch (error) {
     if (error?.name === 'ConditionalCheckFailedException') {
@@ -2976,7 +2978,7 @@ async function executeResendAttempt(attempt) {
       await resendService.updateResendAttemptStatus({
         resendAttemptId,
         status: 'FAILED',
-        updates: { last_error: 'Campaign metadata not found.' },
+        updates: { last_error: 'Campaign metadata not found.' }
       });
       return;
     }
@@ -2984,30 +2986,28 @@ async function executeResendAttempt(attempt) {
       await resendService.updateResendAttemptStatus({
         resendAttemptId,
         status: 'CANCELLED',
-        updates: { last_error: 'Stopped by user.' },
+        updates: { last_error: 'Stopped by user.' }
       });
       return;
     }
 
     const storeConfig = await getStoreConfigById(storeId);
     const userContext = buildUserContextFromStoreConfig(storeConfig, { store_id: storeId });
-    if (
-      !userContext?.whatsapp_api_url ||
-      !userContext?.access_token ||
-      !userContext?.phone_number_id
-    ) {
+    if (!userContext?.whatsapp_api_url || !userContext?.access_token || !userContext?.phone_number_id) {
       await resendService.updateResendAttemptStatus({
         resendAttemptId,
         status: 'FAILED',
-        updates: { last_error: 'WhatsApp configuration missing for resend.' },
+        updates: { last_error: 'WhatsApp configuration missing for resend.' }
       });
       return;
     }
 
     const campaignDetails = await analyticsService.getCampaignRecipients(storeId, {
-      campaignId,
+      campaignId
     });
-    const recipients = Array.isArray(campaignDetails?.recipients) ? campaignDetails.recipients : [];
+    const recipients = Array.isArray(campaignDetails?.recipients)
+      ? campaignDetails.recipients
+      : [];
     const latestRecipients = collapseRecipientsByPhone(recipients);
     const campaignStats = summarizeCampaignRecipients(latestRecipients);
     const attemptNumber = Number(attempt.attempt_number || 1);
@@ -3015,7 +3015,7 @@ async function executeResendAttempt(attempt) {
     const eligibleRecipients = latestRecipients.filter(isResendEligible);
     const dedupedRecipients = [];
     const seenPhones = new Set();
-    eligibleRecipients.forEach((recipient) => {
+    eligibleRecipients.forEach(recipient => {
       const phone = recipient.phone || recipient.customer_phone || '';
       if (!phone || seenPhones.has(phone)) {
         return;
@@ -3023,7 +3023,7 @@ async function executeResendAttempt(attempt) {
       seenPhones.add(phone);
       dedupedRecipients.push({
         phone,
-        name: recipient.name || recipient.customer_name || null,
+        name: recipient.name || recipient.customer_name || null
       });
     });
 
@@ -3035,10 +3035,11 @@ async function executeResendAttempt(attempt) {
           attempted_count: 0,
           success_count: 0,
           failed_count: 0,
-          limited_by_meta_count: 0,
-        },
+          limited_by_meta_count: 0
+        }
       });
-      const successRate = campaignStats.total > 0 ? campaignStats.success / campaignStats.total : 0;
+      const successRate =
+        campaignStats.total > 0 ? campaignStats.success / campaignStats.total : 0;
       const shouldStop =
         attemptNumber >= maxAttempts ||
         successRate >= RESEND_SUCCESS_THRESHOLD ||
@@ -3064,13 +3065,13 @@ async function executeResendAttempt(attempt) {
               max_attempts: maxAttempts,
               status: 'SCHEDULED',
               eligible_count: campaignStats.failed,
-              created_by: attempt.created_by || null,
+              created_by: attempt.created_by || null
             });
           } catch (error) {
             logger.error('Failed to schedule follow-up resend attempt', {
               campaignId,
               resendAttemptId,
-              error: error.message,
+              error: error.message
             });
           }
         }
@@ -3083,12 +3084,13 @@ async function executeResendAttempt(attempt) {
       await resendService.updateResendAttemptStatus({
         resendAttemptId,
         status: 'FAILED',
-        updates: { last_error: 'Template name missing for resend.' },
+        updates: { last_error: 'Template name missing for resend.' }
       });
       return;
     }
 
-    const templateLanguage = metadata.template_language || userContext.template_language || 'en_US';
+    const templateLanguage =
+      metadata.template_language || userContext.template_language || 'en_US';
     const templateParameters = metadata.template_parameters || null;
     const campaignName = metadata.campaign_name || campaignDetails.campaignName || 'Campaign';
     const messageText = metadata.message || campaignName;
@@ -3102,7 +3104,7 @@ async function executeResendAttempt(attempt) {
       await resendService.updateResendAttemptStatus({
         resendAttemptId,
         status: 'FAILED',
-        updates: { last_error: 'Image template requires a header image.' },
+        updates: { last_error: 'Image template requires a header image.' }
       });
       return;
     }
@@ -3111,7 +3113,7 @@ async function executeResendAttempt(attempt) {
     let failureCount = 0;
     let limitedByMetaCount = 0;
 
-    const sendRecipient = async (recipient) => {
+    const sendRecipient = async recipient => {
       let attemptCount = 0;
       while (attemptCount <= CAMPAIGN_MAX_RETRIES) {
         try {
@@ -3146,7 +3148,7 @@ async function executeResendAttempt(attempt) {
             status: 'sent',
             message_id: messageId,
             last_status_update: sentAt,
-            campaign_id: campaignId,
+            campaign_id: campaignId
           });
 
           await persistWhatsAppMessage({
@@ -3162,12 +3164,12 @@ async function executeResendAttempt(attempt) {
             metadata: {
               phoneNumberId: userContext.phone_number_id || null,
               wabaId: userContext.waba_id || null,
-              displayPhoneNumber: userContext.waba_mobile_number || null,
+              displayPhoneNumber: userContext.waba_mobile_number || null
             },
             campaignName,
             campaignId,
             templateName,
-            mediaId: metadata.header_image_s3_key || null,
+            mediaId: metadata.header_image_s3_key || null
           });
 
           await resendService.updateResendRecipient({
@@ -3176,8 +3178,8 @@ async function executeResendAttempt(attempt) {
             updates: {
               status: 'SENT',
               message_id: messageId,
-              sent_at: sentAt,
-            },
+              sent_at: sentAt
+            }
           });
 
           successCount += 1;
@@ -3193,7 +3195,7 @@ async function executeResendAttempt(attempt) {
           const limitedByMeta = isMetaLimitedRecipient({
             status: 'failed',
             error: errorInfo.message,
-            errorCode: errorInfo.code,
+            errorCode: errorInfo.code
           });
 
           await analyticsService.upsertCampaignDetail({
@@ -3215,7 +3217,7 @@ async function executeResendAttempt(attempt) {
             last_status_update: sentAt,
             campaign_id: campaignId,
             error_reason: errorInfo.message,
-            error_code: errorInfo.code ?? null,
+            error_code: errorInfo.code ?? null
           });
 
           await resendService.updateResendRecipient({
@@ -3225,8 +3227,8 @@ async function executeResendAttempt(attempt) {
               status: limitedByMeta ? 'LIMITED_BY_META' : 'FAILED',
               error_reason: errorInfo.message,
               error_code: errorInfo.code ?? null,
-              sent_at: sentAt,
-            },
+              sent_at: sentAt
+            }
           });
 
           failureCount += 1;
@@ -3247,12 +3249,12 @@ async function executeResendAttempt(attempt) {
         attempted_count: dedupedRecipients.length,
         success_count: successCount,
         failed_count: failureCount,
-        limited_by_meta_count: limitedByMetaCount,
-      },
+        limited_by_meta_count: limitedByMetaCount
+      }
     });
 
     const latestCampaignDetails = await analyticsService.getCampaignRecipients(storeId, {
-      campaignId,
+      campaignId
     });
     const latestRecipientsSnapshot = Array.isArray(latestCampaignDetails?.recipients)
       ? latestCampaignDetails.recipients
@@ -3261,7 +3263,8 @@ async function executeResendAttempt(attempt) {
     const latestFailedRecipients = latestUniqueRecipients.filter(isResendEligible);
     const latestFailureCount = latestFailedRecipients.length;
     const latestStats = summarizeCampaignRecipients(latestUniqueRecipients);
-    const successRate = latestStats.total > 0 ? latestStats.success / latestStats.total : 0;
+    const successRate =
+      latestStats.total > 0 ? latestStats.success / latestStats.total : 0;
     const shouldStop =
       attemptNumber >= maxAttempts ||
       successRate >= RESEND_SUCCESS_THRESHOLD ||
@@ -3288,13 +3291,13 @@ async function executeResendAttempt(attempt) {
             max_attempts: maxAttempts,
             status: 'SCHEDULED',
             eligible_count: latestFailureCount,
-            created_by: attempt.created_by || null,
+            created_by: attempt.created_by || null
           });
         } catch (error) {
           logger.error('Failed to schedule follow-up resend attempt', {
             campaignId,
             resendAttemptId,
-            error: error.message,
+            error: error.message
           });
         }
       }
@@ -3303,10 +3306,11 @@ async function executeResendAttempt(attempt) {
     await resendService.updateResendAttemptStatus({
       resendAttemptId,
       status: 'FAILED',
-      updates: { last_error: error.message || 'Resend failed.' },
+      updates: { last_error: error.message || 'Resend failed.' }
     });
   }
 }
+
 
 // GET /templates - retrieve WhatsApp templates for the authenticated store
 router.get('/templates', async (req, res) => {
@@ -3314,7 +3318,7 @@ router.get('/templates', async (req, res) => {
     waba_id: wabaId,
     access_token: accessToken,
     store_id: storeId,
-    phone_number_id: phoneNumberId,
+    phone_number_id: phoneNumberId
   } = req.user || {};
 
   if (!wabaId || !accessToken) {
@@ -3333,7 +3337,7 @@ router.get('/templates', async (req, res) => {
   const params = {
     fields,
     limit,
-    access_token: accessToken,
+    access_token: accessToken
   };
 
   if (after) params.after = after;
@@ -3348,7 +3352,7 @@ router.get('/templates', async (req, res) => {
       paging: payload.paging || null,
       summary: payload.summary || null,
       waba_id: wabaId,
-      phone_number_id: phoneNumberId || null,
+      phone_number_id: phoneNumberId || null
     });
   } catch (error) {
     const status = error.response?.status || 500;
@@ -3358,7 +3362,7 @@ router.get('/templates', async (req, res) => {
       storeId,
       wabaId,
       status,
-      error: errorMessage,
+      error: errorMessage
     });
     res.status(status).json({ error: errorMessage });
   }
@@ -3367,12 +3371,12 @@ router.get('/templates', async (req, res) => {
 const parseExampleList = (value) => {
   if (!value) return null;
   if (Array.isArray(value)) {
-    return value.map((item) => (typeof item === 'string' ? item.trim() : item)).filter(Boolean);
+    return value.map(item => (typeof item === 'string' ? item.trim() : item)).filter(Boolean);
   }
   if (typeof value === 'string') {
     return value
       .split(/[\n,]/)
-      .map((item) => item.trim())
+      .map(item => item.trim())
       .filter(Boolean);
   }
   return null;
@@ -3390,11 +3394,7 @@ router.get('/webhook', async (req, res) => {
     const verification = await verifyWebhookToken(token);
 
     if (verification.valid) {
-      logger.info('Webhook verified successfully', {
-        challenge,
-        source: verification.source,
-        storeId: verification.storeId || 'env',
-      });
+      logger.info('Webhook verified successfully', { challenge, source: verification.source, storeId: verification.storeId || 'env' });
       if (verification.storeId) {
         await touchWebhookValidation(verification.storeId);
       }
@@ -3402,11 +3402,7 @@ router.get('/webhook', async (req, res) => {
     }
   }
 
-  logger.warn('Webhook verification failed', {
-    mode,
-    token,
-    expectedToken: process.env.WEBHOOK_VERIFY_TOKEN,
-  });
+  logger.warn('Webhook verification failed', { mode, token, expectedToken: process.env.WEBHOOK_VERIFY_TOKEN });
   res.status(403).send('Forbidden');
 });
 
@@ -3421,16 +3417,13 @@ router.get('/config/webhook', async (req, res) => {
   try {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
-      Key: { store_id: storeId },
+      Key: { store_id: storeId }
     });
 
     const result = await docClient.send(command);
     const config = result.Item?.webhook_config || {};
 
-    logger.info('Webhook configuration fetched', {
-      storeId,
-      hasConfig: Boolean(result.Item?.webhook_config),
-    });
+    logger.info('Webhook configuration fetched', { storeId, hasConfig: Boolean(result.Item?.webhook_config) });
     res.json(formatWebhookConfigResponse(config));
   } catch (error) {
     logger.error('Error fetching webhook configuration', { storeId, error: error.message });
@@ -3465,18 +3458,16 @@ router.post('/config/webhook', async (req, res) => {
   const timestamp = new Date().toISOString();
 
   try {
-    const existing = await docClient.send(
-      new GetCommand({
-        TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId },
-      })
-    );
+    const existing = await docClient.send(new GetCommand({
+      TableName: STORE_CONFIG_TABLE,
+      Key: { store_id: storeId }
+    }));
 
     const currentConfig = existing.Item?.webhook_config || {};
     const nextConfig = {
       ...currentConfig,
       webhook_url: parsedUrl.toString(),
-      updated_at: timestamp,
+      updated_at: timestamp
     };
 
     if (typeof verifyToken === 'string') {
@@ -3493,22 +3484,20 @@ router.post('/config/webhook', async (req, res) => {
       }
     }
 
-    await docClient.send(
-      new UpdateCommand({
-        TableName: STORE_CONFIG_TABLE,
-        Key: { store_id: storeId },
-        UpdateExpression: 'SET webhook_config = :config',
-        ExpressionAttributeValues: {
-          ':config': nextConfig,
-        },
-      })
-    );
+    await docClient.send(new UpdateCommand({
+      TableName: STORE_CONFIG_TABLE,
+      Key: { store_id: storeId },
+      UpdateExpression: 'SET webhook_config = :config',
+      ExpressionAttributeValues: {
+        ':config': nextConfig
+      }
+    }));
 
     logger.info('Webhook configuration updated', { storeId });
 
     res.json({
       success: true,
-      config: formatWebhookConfigResponse(nextConfig),
+      config: formatWebhookConfigResponse(nextConfig)
     });
   } catch (error) {
     logger.error('Error updating webhook configuration', { storeId, error: error.message });
@@ -3527,7 +3516,7 @@ router.get('/config/onboarding', async (req, res) => {
   try {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
-      Key: { store_id: storeId },
+      Key: { store_id: storeId }
     });
 
     const result = await docClient.send(command);
@@ -3535,7 +3524,7 @@ router.get('/config/onboarding', async (req, res) => {
 
     logger.info('Onboarding configuration fetched', {
       storeId,
-      hasConfig: Boolean(config.waba_id || config.phone_number_id || config.verified_name),
+      hasConfig: Boolean(config.waba_id || config.phone_number_id || config.verified_name)
     });
 
     res.json({
@@ -3546,7 +3535,7 @@ router.get('/config/onboarding', async (req, res) => {
       appId: config.meta_app_id || '',
       verifiedName: config.verified_name || '',
       lastUpdatedAt: config.onboarding_updated_at || null,
-      onboardingLink: ONBOARDING_LINK,
+      onboardingLink: ONBOARDING_LINK
     });
   } catch (error) {
     logger.error('Error fetching onboarding configuration', { storeId, error: error.message });
@@ -3558,7 +3547,7 @@ router.get('/config/onboarding', async (req, res) => {
 router.get('/onboarding/latest-webhook', (req, res) => {
   res.json({
     latest: latestOnboardingSnapshot,
-    raw: latestOnboardingRawPayload,
+    raw: latestOnboardingRawPayload
   });
 });
 
@@ -3587,7 +3576,7 @@ router.get('/onboarding/phone-numbers', async (req, res) => {
     } catch (error) {
       logger.error('Failed to resolve store config while fetching phone numbers', {
         storeId,
-        error: error.message,
+        error: error.message
       });
     }
   }
@@ -3605,7 +3594,7 @@ router.get('/onboarding/phone-numbers', async (req, res) => {
     const payload = await fetchWabaPhoneNumbers({
       wabaId,
       accessToken,
-      version: GRAPH_API_VERSION,
+      version: GRAPH_API_VERSION
     });
 
     const phoneNumbers = Array.isArray(payload?.data) ? payload.data : [];
@@ -3616,7 +3605,7 @@ router.get('/onboarding/phone-numbers', async (req, res) => {
           storeId,
           wabaId,
           phoneNumberId: record.id,
-          verifiedName: record?.verified_name || null,
+          verifiedName: record?.verified_name || null
         });
       }
 
@@ -3625,7 +3614,7 @@ router.get('/onboarding/phone-numbers', async (req, res) => {
           storeId,
           wabaId,
           phoneNumberId: record?.id || null,
-          verifiedName: record?.verified_name || null,
+          verifiedName: record?.verified_name || null
         });
       }
     });
@@ -3633,12 +3622,11 @@ router.get('/onboarding/phone-numbers', async (req, res) => {
     res.json({
       wabaId,
       phoneNumbers,
-      paging: payload?.paging || null,
+      paging: payload?.paging || null
     });
   } catch (error) {
     const status = error.response?.status || 500;
-    const message =
-      error.response?.data?.error?.message || error.message || 'Failed to fetch phone numbers';
+    const message = error.response?.data?.error?.message || error.message || 'Failed to fetch phone numbers';
     res.status(status === 400 ? 400 : 502).json({ error: message });
   }
 });
@@ -3687,9 +3675,9 @@ router.post('/config/onboarding', async (req, res) => {
         ':businessId': trimmedBusinessId || null,
         ':appId': trimmedAppId || null,
         ':accessToken': resolvedAccessToken,
-        ':whatsappApiUrl': resolvedWhatsappApiUrl,
+        ':whatsappApiUrl': resolvedWhatsappApiUrl
       },
-      ReturnValues: 'ALL_NEW',
+      ReturnValues: 'ALL_NEW'
     });
 
     const result = await docClient.send(command);
@@ -3697,7 +3685,7 @@ router.post('/config/onboarding', async (req, res) => {
 
     logger.info('Onboarding configuration updated', {
       storeId,
-      hasVerifiedName: Boolean(trimmedVerifiedName),
+      hasVerifiedName: Boolean(trimmedVerifiedName)
     });
 
     res.json({
@@ -3710,15 +3698,18 @@ router.post('/config/onboarding', async (req, res) => {
             ? config.waba_mobile_number
             : trimmedBusinessPhone,
         businessId:
-          typeof config.meta_business_id === 'string' ? config.meta_business_id : trimmedBusinessId,
-        appId: typeof config.meta_app_id === 'string' ? config.meta_app_id : trimmedAppId,
+          typeof config.meta_business_id === 'string'
+            ? config.meta_business_id
+            : trimmedBusinessId,
+        appId:
+          typeof config.meta_app_id === 'string' ? config.meta_app_id : trimmedAppId,
         verifiedName:
           typeof config.verified_name === 'string' ? config.verified_name : trimmedVerifiedName,
         lastUpdatedAt: config.onboarding_updated_at || timestamp,
         onboardingLink: ONBOARDING_LINK,
         accessToken: config.access_token || resolvedAccessToken,
-        whatsappApiUrl: config.whatsapp_api_url || resolvedWhatsappApiUrl,
-      },
+        whatsappApiUrl: config.whatsapp_api_url || resolvedWhatsappApiUrl
+      }
     });
   } catch (error) {
     logger.error('Error updating onboarding configuration', { storeId, error: error.message });
@@ -3756,13 +3747,13 @@ router.post('/register-number', async (req, res) => {
       registerUrl,
       {
         messaging_product: 'whatsapp',
-        pin: trimmedPin,
+        pin: trimmedPin
       },
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
+          'Content-Type': 'application/json'
+        }
       }
     );
 
@@ -3779,7 +3770,7 @@ router.post('/register-number', async (req, res) => {
       phoneNumberId: trimmedPhoneId,
       status,
       error: errorMessage,
-      details: error.response?.data,
+      details: error.response?.data
     });
 
     res.status(status).json({ error: errorMessage });
@@ -3798,7 +3789,7 @@ router.post('/config/webhook/validate', async (req, res) => {
   try {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
-      Key: { store_id: storeId },
+      Key: { store_id: storeId }
     });
 
     const result = await docClient.send(command);
@@ -3809,8 +3800,7 @@ router.post('/config/webhook/validate', async (req, res) => {
       return res.status(400).json({ error: 'No verify token stored for this store' });
     }
 
-    const provided =
-      typeof verifyToken === 'string' && verifyToken.trim().length > 0 ? verifyToken.trim() : null;
+    const provided = typeof verifyToken === 'string' && verifyToken.trim().length > 0 ? verifyToken.trim() : null;
     const storedMatch = provided ? provided === storedToken : true;
     const envToken = process.env.WEBHOOK_VERIFY_TOKEN || '123456789';
     const matchesEnvironment = envToken && envToken.length > 0 ? storedToken === envToken : null;
@@ -3819,26 +3809,24 @@ router.post('/config/webhook/validate', async (req, res) => {
       const validatedAt = new Date().toISOString();
       const nextConfig = {
         ...config,
-        last_validated_at: validatedAt,
+        last_validated_at: validatedAt
       };
 
-      await docClient.send(
-        new UpdateCommand({
-          TableName: STORE_CONFIG_TABLE,
-          Key: { store_id: storeId },
-          UpdateExpression: 'SET webhook_config = :config',
-          ExpressionAttributeValues: {
-            ':config': nextConfig,
-          },
-        })
-      );
+      await docClient.send(new UpdateCommand({
+        TableName: STORE_CONFIG_TABLE,
+        Key: { store_id: storeId },
+        UpdateExpression: 'SET webhook_config = :config',
+        ExpressionAttributeValues: {
+          ':config': nextConfig
+        }
+      }));
 
       logger.info('Webhook configuration validated', { storeId, matchesEnvironment });
 
       return res.json({
         valid: true,
         matchesEnvironment,
-        config: formatWebhookConfigResponse(nextConfig),
+        config: formatWebhookConfigResponse(nextConfig)
       });
     }
 
@@ -3847,7 +3835,7 @@ router.post('/config/webhook/validate', async (req, res) => {
     res.json({
       valid: false,
       matchesEnvironment,
-      config: formatWebhookConfigResponse(config),
+      config: formatWebhookConfigResponse(config)
     });
   } catch (error) {
     logger.error('Error validating webhook configuration', { storeId, error: error.message });
@@ -3859,13 +3847,13 @@ router.post('/config/webhook/validate', async (req, res) => {
 router.post('/webhook', async (req, res) => {
   try {
     const body = req.body;
-
+    
     // Respond quickly to avoid timeout
     res.status(200).send('OK');
 
-    logger.info('Webhook received', {
+    logger.info('Webhook received', { 
       object: body.object,
-      entries: body.entry?.length || 0,
+      entries: body.entry?.length || 0 
     });
 
     if (body.object === 'whatsapp_business_account') {
@@ -3905,7 +3893,7 @@ async function processWebhookChange(entry, change, fullBody) {
   const handledOnboarding = captureOnboardingSnapshot({
     entry,
     change,
-    fullBody,
+    fullBody
   });
 
   if (normalizedField !== 'messages') {
@@ -3922,26 +3910,23 @@ async function processWebhookChange(entry, change, fullBody) {
     logger.warn('Unable to resolve store for webhook change', {
       phoneNumberId,
       wabaId,
-      displayPhoneNumber,
+      displayPhoneNumber
     });
-
+    
     // Try to find store by scanning all stores and logging what we find
     try {
-      const allStores = await docClient.send(
-        new ScanCommand({
-          TableName: STORE_CONFIG_TABLE,
-          ProjectionExpression: 'store_id, phone_number_id, waba_id, waba_mobile_number',
-        })
-      );
-
+      const allStores = await docClient.send(new ScanCommand({
+        TableName: STORE_CONFIG_TABLE,
+        ProjectionExpression: 'store_id, phone_number_id, waba_id, waba_mobile_number'
+      }));
+      
       logger.info('Available store configurations', {
-        stores:
-          allStores.Items?.map((item) => ({
-            storeId: item.store_id,
-            phoneNumberId: item.phone_number_id,
-            wabaId: item.waba_id,
-            mobileNumber: item.waba_mobile_number,
-          })) || [],
+        stores: allStores.Items?.map(item => ({
+          storeId: item.store_id,
+          phoneNumberId: item.phone_number_id,
+          wabaId: item.waba_id,
+          mobileNumber: item.waba_mobile_number
+        })) || []
       });
     } catch (error) {
       logger.error('Failed to scan store configurations', { error: error.message });
@@ -3958,7 +3943,7 @@ async function processWebhookChange(entry, change, fullBody) {
           ? {
               code: status.errors[0]?.code ?? null,
               title: status.errors[0]?.title ?? null,
-              details: status.errors[0]?.error_data?.details ?? null,
+              details: status.errors[0]?.error_data?.details ?? null
             }
           : null;
       const event = {
@@ -3967,15 +3952,15 @@ async function processWebhookChange(entry, change, fullBody) {
         status: status.status,
         timestamp: new Date(parseInt(status.timestamp) * 1000).toISOString(),
         recipient: status.recipient_id,
-        error: errorInfo,
+        error: errorInfo
       };
-
+      
       EventBuffer.addEvent(event);
-      logger.info('Status update processed', {
-        messageId: status.id,
-        status: status.status,
+      logger.info('Status update processed', { 
+        messageId: status.id, 
+        status: status.status, 
         recipient: status.recipient_id,
-        error: errorInfo,
+        error: errorInfo
       });
 
       await appendMessageStatus({
@@ -3983,7 +3968,7 @@ async function processWebhookChange(entry, change, fullBody) {
         customerPhone: status.recipient_id,
         messageId: status.id,
         status: status.status,
-        statusTimestamp: event.timestamp,
+        statusTimestamp: event.timestamp
       });
 
       try {
@@ -3997,7 +3982,7 @@ async function processWebhookChange(entry, change, fullBody) {
         logger.error('Failed to update campaign detail status', {
           messageId: status.id,
           status: status.status,
-          error: error.message,
+          error: error.message
         });
       }
 
@@ -4005,13 +3990,13 @@ async function processWebhookChange(entry, change, fullBody) {
         await resendService.updateResendRecipientStatusByMessageId({
           messageId: status.id,
           status: status.status,
-          error: errorInfo,
+          error: errorInfo
         });
       } catch (error) {
         logger.error('Failed to update resend recipient status', {
           messageId: status.id,
           status: status.status,
-          error: error.message,
+          error: error.message
         });
       }
     }
@@ -4024,53 +4009,58 @@ async function processWebhookChange(entry, change, fullBody) {
       if (details.type === 'order' && details.orderMetadata && storeId) {
         try {
           const storeConfig = await getStoreConfigById(storeId);
-          const catalogId = details.orderMetadata.catalog_id || storeConfig?.catalog_id || null;
-          const accessToken = storeContext?.accessToken || storeConfig?.access_token || null;
+          const catalogId =
+            details.orderMetadata.catalog_id || storeConfig?.catalog_id || null;
+          const accessToken =
+            storeContext?.accessToken || storeConfig?.access_token || null;
           if (catalogId && accessToken) {
             const catalogItems = await fetchCatalogProducts({
               catalogId,
               accessToken,
               graphVersion: process.env.GRAPH_API_VERSION,
-              limit: 200,
+              limit: 200
             });
             const catalogMap = new Map(
               catalogItems
-                .filter((item) => item?.product_retailer_id)
-                .map((item) => [
+                .filter(item => item?.product_retailer_id)
+                .map(item => [
                   item.product_retailer_id,
                   {
                     name: item.name,
                     price_value: item.price_value,
-                    currency: item.currency,
-                  },
+                    currency: item.currency
+                  }
                 ])
             );
             const items = Array.isArray(details.orderMetadata.product_items)
               ? details.orderMetadata.product_items
               : [];
-            const enriched = items.map((item) => {
+            const enriched = items.map(item => {
               const retailerId = item?.product_retailer_id || null;
               const catalogInfo = retailerId ? catalogMap.get(retailerId) : null;
               return {
                 ...item,
                 name: item?.name || catalogInfo?.name || retailerId || item?.item_id || 'Item',
                 item_price:
-                  item?.item_price ?? catalogInfo?.price_value ?? item?.item_price ?? null,
-                currency: item?.currency || catalogInfo?.currency || item?.currency || null,
+                  item?.item_price ?? (catalogInfo?.price_value ?? item?.item_price ?? null),
+                currency: item?.currency || catalogInfo?.currency || item?.currency || null
               };
             });
             details.orderMetadata = {
               ...details.orderMetadata,
               catalog_id: catalogId,
-              product_items: enriched,
+              product_items: enriched
             };
-            details.text = buildOrderSummaryText(details.orderMetadata.text, enriched);
+            details.text = buildOrderSummaryText(
+              details.orderMetadata.text,
+              enriched
+            );
           }
         } catch (error) {
           logger.warn('Failed to enrich order metadata with catalog details', {
             storeId,
             messageId: message.id,
-            error: error.message,
+            error: error.message
           });
         }
       }
@@ -4079,14 +4069,14 @@ async function processWebhookChange(entry, change, fullBody) {
         messageId: message.id,
         customerPhone: message.from,
         messageType: details.type || message.type || 'text',
-        text: details.text,
+        text: details.text
       });
       const event = {
         id: message.id,
         type: 'message',
         from: message.from,
         timestamp: new Date(parseInt(message.timestamp) * 1000).toISOString(),
-        text: details.text,
+        text: details.text
       };
 
       EventBuffer.addEvent(event);
@@ -4105,19 +4095,19 @@ async function processWebhookChange(entry, change, fullBody) {
             phoneNumberId,
             wabaId,
             displayPhoneNumber,
-            raw: metadata,
+            raw: metadata
           },
           mediaId: details.mediaId,
           mediaMetadata: details.mediaMetadata,
           locationMetadata: details.locationMetadata,
-          orderMetadata: details.orderMetadata,
+          orderMetadata: details.orderMetadata
         });
       } else {
         logger.warn('Skipping message persistence and automation: missing storeId', {
           messageId: message.id,
           customerPhone: message.from,
           phoneNumberId,
-          wabaId,
+          wabaId
         });
       }
 
@@ -4125,7 +4115,7 @@ async function processWebhookChange(entry, change, fullBody) {
         storeId,
         customerPhone: message.from,
         messageId: message.id,
-        text: details.text,
+        text: details.text
       });
 
       // Process message and send appropriate response
@@ -4135,16 +4125,16 @@ async function processWebhookChange(entry, change, fullBody) {
         inboundTexts: details.triggerCandidates?.length
           ? details.triggerCandidates
           : details.text
-            ? [details.text]
-            : [],
+          ? [details.text]
+          : [],
         inboundMessageId: message.id,
         metadata: {
           phoneNumberId: storeContext?.phoneNumberId || phoneNumberId,
           wabaId: storeContext?.wabaId || wabaId,
           displayPhoneNumber: storeContext?.displayPhoneNumber || displayPhoneNumber,
           accessToken: storeContext?.accessToken || null,
-          whatsappApiUrl: storeContext?.whatsappApiUrl || null,
-        },
+          whatsappApiUrl: storeContext?.whatsappApiUrl || null
+        }
       });
     }
   }
@@ -4155,28 +4145,28 @@ async function handleIncomingMessage({
   storeId,
   inboundTexts,
   inboundMessageId,
-  metadata,
+  metadata
 }) {
   const from = message.from;
   const messageId = message.id;
-
+  
   try {
     const normalizedTexts = (Array.isArray(inboundTexts) ? inboundTexts : [])
-      .map((value) => normalizeMatchText(value))
+      .map(value => normalizeMatchText(value))
       .filter(Boolean);
     if (normalizedTexts.length > 0) {
       logger.info('Processing inbound message', {
         from,
         text: normalizedTexts[0],
         messageId,
-        candidates: normalizedTexts.length,
+        candidates: normalizedTexts.length
       });
       const handled = await handleAutomationReply({
         storeId,
         customerPhone: from,
         inboundTexts: normalizedTexts,
         inboundMessageId,
-        metadata,
+        metadata
       });
       if (handled) {
         return;
@@ -4197,11 +4187,12 @@ async function handleIncomingMessage({
           const items = Array.isArray(order.product_items) ? order.product_items : [];
           const orderLines = [
             `New order from ${formatPhoneToE164(from) || from}`,
-            `Items: ${items.length}`,
+            `Items: ${items.length}`
           ];
-          items.forEach((item) => {
+          items.forEach(item => {
             const qty = Number(item?.quantity || 0) || 1;
-            const label = item?.name || item?.product_retailer_id || item?.item_id || 'Item';
+            const label =
+              item?.name || item?.product_retailer_id || item?.item_id || 'Item';
             const price = item?.item_price ? ` @ ${item.item_price}` : '';
             orderLines.push(`- ${qty} x ${label}${price}`);
           });
@@ -4218,23 +4209,20 @@ async function handleIncomingMessage({
               to: notifyPhone.replace('+', ''),
               payload: { type: 'text', text: { body: summary } },
               accessToken,
-              apiUrl,
+              apiUrl
             });
           } else {
-            await whatsappService.sendMessage(notifyPhone, {
-              type: 'text',
-              text: { body: summary },
-            });
+            await whatsappService.sendMessage(notifyPhone, { type: 'text', text: { body: summary } });
           }
         } else {
           logger.warn('Order notification skipped: no contact phone configured', {
-            storeId,
+            storeId
           });
         }
       } catch (error) {
         logger.warn('Failed to send order notification', {
           storeId,
-          error: error.message,
+          error: error.message
         });
       }
     }
@@ -4250,38 +4238,40 @@ async function handleIncomingMessage({
         await whatsappService.sendReplyButtons(from);
       }
     }
-
+    
     // Handle interactive messages
     else if (message.type === 'interactive') {
       const interactive = message.interactive;
-
+      
       if (interactive.type === 'list_reply') {
         const selectedId = interactive.list_reply.id;
         const selectedTitle = interactive.list_reply.title;
-
+        
         logger.info('List reply received', { from, selectedId, selectedTitle });
-
+        
         await whatsappService.sendTextMessage(
-          from,
+          from, 
           `You selected: ${selectedTitle} (ID: ${selectedId})`
         );
-      } else if (interactive.type === 'button_reply') {
+      }
+      
+      else if (interactive.type === 'button_reply') {
         const selectedId = interactive.button_reply.id;
         const selectedTitle = interactive.button_reply.title;
-
+        
         logger.info('Button reply received', { from, selectedId, selectedTitle });
-
+        
         await whatsappService.sendTextMessage(
-          from,
+          from, 
           `You clicked: ${selectedTitle} (ID: ${selectedId})`
         );
       }
     }
   } catch (error) {
-    logger.error('Error handling incoming message', {
-      from,
-      messageId,
-      error: error.message,
+    logger.error('Error handling incoming message', { 
+      from, 
+      messageId, 
+      error: error.message 
     });
   }
 }
@@ -4289,7 +4279,7 @@ async function handleIncomingMessage({
 // GET /events - Get webhook events
 router.get('/events', (req, res) => {
   const format = req.query.format || 'json';
-
+  
   try {
     if (format === 'html') {
       const html = EventBuffer.getEventsAsHtml();
@@ -4308,22 +4298,18 @@ router.get('/events', (req, res) => {
 // GET /logs - Get system logs
 router.get('/logs', (req, res) => {
   const format = req.query.format || 'json';
-
+  
   try {
     const logs = getLogBuffer();
-
+    
     if (format === 'html') {
-      const rows = logs
-        .map(
-          (log) => `
+      const rows = logs.map(log => `
         <tr>
           <td>${log.timestamp}</td>
           <td><span class="level-${log.level.toLowerCase()}">${log.level}</span></td>
           <td>${log.message}</td>
         </tr>
-      `
-        )
-        .join('');
+      `).join('');
 
       const html = `
         <html>
@@ -4358,7 +4344,7 @@ router.get('/logs', (req, res) => {
           </body>
         </html>
       `;
-
+      
       res.setHeader('Content-Type', 'text/html');
       res.send(html);
     } else {
@@ -4388,11 +4374,11 @@ router.get('/analytics', async (req, res) => {
           TableName: WHATSAPP_MESSAGES_TABLE,
           KeyConditionExpression: 'store_id = :store',
           ExpressionAttributeValues: {
-            ':store': storeId,
+            ':store': storeId
           },
           ScanIndexForward: false,
           Limit: 500,
-          ExclusiveStartKey: lastEvaluatedKey,
+          ExclusiveStartKey: lastEvaluatedKey
         })
       );
 
@@ -4405,7 +4391,7 @@ router.get('/analytics', async (req, res) => {
 
     const summaryMap = new Map();
 
-    items.forEach((item) => {
+    items.forEach(item => {
       if (!item.customer_phone) {
         return;
       }
@@ -4437,8 +4423,8 @@ router.get('/analytics', async (req, res) => {
             delivered: 0,
             read: 0,
             failed: 0,
-            other: 0,
-          },
+            other: 0
+          }
         };
         summaryMap.set(normalizedPhone, summary);
       } else {
@@ -4480,12 +4466,7 @@ router.get('/analytics', async (req, res) => {
         summary.messages_sent += 1;
         if (item.status) {
           const statusKey = item.status.toLowerCase();
-          if (
-            statusKey === 'sent' ||
-            statusKey === 'delivered' ||
-            statusKey === 'read' ||
-            statusKey === 'failed'
-          ) {
+          if (statusKey === 'sent' || statusKey === 'delivered' || statusKey === 'read' || statusKey === 'failed') {
             summary.statuses[statusKey] += 1;
           } else {
             summary.statuses.other += 1;
@@ -4496,7 +4477,7 @@ router.get('/analytics', async (req, res) => {
     });
 
     const analytics = Array.from(summaryMap.values())
-      .map((summary) => {
+      .map(summary => {
         const phones = Array.from(summary.phones);
         if (!phones.includes(summary.primaryPhone)) {
           phones.unshift(summary.primaryPhone);
@@ -4516,7 +4497,7 @@ router.get('/analytics', async (req, res) => {
           statuses: summary.statuses,
           phones,
           primary_phone: summary.primaryPhone,
-          normalized_phone: summary.normalizedPhone,
+          normalized_phone: summary.normalizedPhone
         };
       })
       .sort((a, b) => {
@@ -4550,9 +4531,9 @@ router.get('/contacts', async (req, res) => {
           TableName: CUSTOMER_RECORDS_TABLE,
           KeyConditionExpression: 'store_id = :store',
           ExpressionAttributeValues: {
-            ':store': storeId,
+            ':store': storeId
           },
-          ExclusiveStartKey: lastEvaluatedKey,
+          ExclusiveStartKey: lastEvaluatedKey
         })
       );
       if (result.Items) {
@@ -4562,7 +4543,7 @@ router.get('/contacts', async (req, res) => {
     } while (lastEvaluatedKey);
 
     const mapped = contacts
-      .map((item) => {
+      .map(item => {
         const rawPhone =
           item.customer_phone || item.phone || item.normalized_phone || item.display_phone || null;
         const normalized = formatPhoneWithCountryDigits(rawPhone);
@@ -4581,13 +4562,13 @@ router.get('/contacts', async (req, res) => {
           tag: item.tag || item.customer_tag || null,
           created_at: item.created_at || null,
           updated_at: item.updated_at || null,
-          source: item.source || null,
+          source: item.source || null
         };
       })
       .filter(Boolean);
 
     res.json({
-      contacts: mapped,
+      contacts: mapped
     });
   } catch (error) {
     logger.error('Failed to load saved contacts', { store_id: storeId, error: error.message });
@@ -4635,7 +4616,7 @@ router.post('/contacts', async (req, res) => {
           '#contact': 'contact_id',
           '#updated': 'updated_at',
           '#created': 'created_at',
-          '#source': 'source',
+          '#source': 'source'
         },
         ExpressionAttributeValues: {
           ':phone': formattedPhone,
@@ -4645,9 +4626,9 @@ router.post('/contacts', async (req, res) => {
           ':contactId': contactId,
           ':updated': now,
           ':created': now,
-          ':source': 'whatsapp',
+          ':source': 'whatsapp'
         },
-        ReturnValues: 'ALL_NEW',
+        ReturnValues: 'ALL_NEW'
       })
     );
 
@@ -4660,14 +4641,16 @@ router.post('/contacts', async (req, res) => {
         normalized_phone: normalizedDigits,
         created_at: result.Attributes?.created_at || now,
         updated_at: result.Attributes?.updated_at || now,
-        source: 'whatsapp',
-      },
+        source: 'whatsapp'
+      }
     });
   } catch (error) {
     logger.error('Failed to save WhatsApp contact', { store_id: storeId, error: error.message });
     res.status(500).json({ error: 'Unable to save contact details.' });
   }
 });
+
+
 
 router.delete('/contacts/:phone', async (req, res) => {
   const storeId = req.user?.store_id;
@@ -4694,7 +4677,7 @@ router.delete('/contacts/:phone', async (req, res) => {
       await docClient.send(
         new DeleteCommand({
           TableName: CUSTOMER_RECORDS_TABLE,
-          Key: { store_id: storeId, customer_phone: key },
+          Key: { store_id: storeId, customer_phone: key }
         })
       );
     }
@@ -4725,7 +4708,7 @@ router.post('/contacts/import', async (req, res) => {
   let skipped = 0;
   const errors = [];
 
-  const isInvalidName = (value) => {
+  const isInvalidName = value => {
     const name = (value || '').toString().trim().toLowerCase();
     return !name || name === 'nill' || name === 'nil';
   };
@@ -4767,7 +4750,7 @@ router.post('/contacts/import', async (req, res) => {
             '#contact': 'contact_id',
             '#updated': 'updated_at',
             '#created': 'created_at',
-            '#source': 'source',
+            '#source': 'source'
           },
           ExpressionAttributeValues: {
             ':phone': formattedPhone,
@@ -4777,8 +4760,8 @@ router.post('/contacts/import', async (req, res) => {
             ':contactId': contactId,
             ':updated': now,
             ':created': now,
-            ':source': 'import',
-          },
+            ':source': 'import'
+          }
         })
       );
       imported += 1;
@@ -4797,10 +4780,10 @@ async function getCampaignDetailsForCustomer(storeId, customerPhone) {
     const campaigns = await analyticsService.getCampaignDetailsByCustomer(storeId, customerPhone);
     return campaigns || [];
   } catch (error) {
-    logger.error('Error fetching campaign details for customer', {
-      storeId,
-      customerPhone,
-      error: error.message,
+    logger.error('Error fetching campaign details for customer', { 
+      storeId, 
+      customerPhone, 
+      error: error.message 
     });
     return [];
   }
@@ -4810,7 +4793,7 @@ async function getCampaignDetailsForCustomers(storeId, customerPhones) {
   const uniquePhones = Array.from(
     new Set(
       (customerPhones || [])
-        .map((phone) => (typeof phone === 'string' ? phone.trim() : ''))
+        .map(phone => (typeof phone === 'string' ? phone.trim() : ''))
         .filter(Boolean)
     )
   );
@@ -4819,17 +4802,14 @@ async function getCampaignDetailsForCustomers(storeId, customerPhones) {
     return [];
   }
 
-  const results = await Promise.all(
-    uniquePhones.map((phone) => getCampaignDetailsForCustomer(storeId, phone))
-  );
+  const results = await Promise.all(uniquePhones.map(phone => getCampaignDetailsForCustomer(storeId, phone)));
   const merged = new Map();
 
-  results.flat().forEach((campaign) => {
+  results.flat().forEach(campaign => {
     if (!campaign) {
       return;
     }
-    const campaignId =
-      campaign.campaign_id || `${campaign.campaign_name || 'campaign'}-${campaign.sent_at}`;
+    const campaignId = campaign.campaign_id || `${campaign.campaign_name || 'campaign'}-${campaign.sent_at}`;
     if (!merged.has(campaignId)) {
       merged.set(campaignId, campaign);
     }
@@ -4846,16 +4826,16 @@ router.get('/chat/:userId', async (req, res) => {
   if (!storeId) {
     return res.status(400).json({ error: 'Store context missing from request' });
   }
-
+  
   try {
     const candidatePhones = new Set();
     collectPhoneVariants(candidatePhones, userId);
 
     const queryPhonesParam = req.query.phones;
     if (Array.isArray(queryPhonesParam)) {
-      queryPhonesParam.forEach((phone) => collectPhoneVariants(candidatePhones, phone));
+      queryPhonesParam.forEach(phone => collectPhoneVariants(candidatePhones, phone));
     } else if (typeof queryPhonesParam === 'string') {
-      queryPhonesParam.split(',').forEach((phone) => collectPhoneVariants(candidatePhones, phone));
+      queryPhonesParam.split(',').forEach(phone => collectPhoneVariants(candidatePhones, phone));
     }
 
     if (typeof req.query.normalized === 'string') {
@@ -4880,17 +4860,17 @@ router.get('/chat/:userId', async (req, res) => {
             FilterExpression: '#store_id = :store',
             ExpressionAttributeValues: {
               ':phone': phone,
-              ':store': storeId,
+              ':store': storeId
             },
             ExpressionAttributeNames: {
-              '#store_id': 'store_id',
+              '#store_id': 'store_id'
             },
-            ScanIndexForward: true,
+            ScanIndexForward: true
           })
         );
 
         if (result.Items) {
-          result.Items.forEach((item) => {
+          result.Items.forEach(item => {
             const key = item.message_id || `${item.timestamp}#${item.direction}`;
             if (!seenMessageIds.has(key)) {
               seenMessageIds.add(key);
@@ -4902,85 +4882,85 @@ router.get('/chat/:userId', async (req, res) => {
         logger.error('Error querying chat history variant', {
           storeId,
           phoneVariant: phone,
-          error: queryError.message,
+          error: queryError.message
         });
       }
     }
 
     // Get campaign details for this customer across variants
     const campaignDetails = await getCampaignDetailsForCustomers(storeId, phonesToQuery);
-
+    
     const chatHistory = await Promise.all(
       fetchedItems
-        .filter((item) => item.direction === 'inbound' || item.direction === 'outbound')
-        .map(async (item) => {
-          const messageType = item.message_type || (item.direction === 'inbound' ? 'text' : 'text');
-          const mediaMetadata = item.media_metadata || null;
-          const locationMetadata = item.location_metadata || null;
-          const mediaId = item.media_id || null;
-          let mediaUrl = null;
-          let derivedFileName = null;
+        .filter(item => item.direction === 'inbound' || item.direction === 'outbound')
+        .map(async item => {
+        const messageType = item.message_type || (item.direction === 'inbound' ? 'text' : 'text');
+        const mediaMetadata = item.media_metadata || null;
+        const locationMetadata = item.location_metadata || null;
+        const mediaId = item.media_id || null;
+        let mediaUrl = null;
+        let derivedFileName = null;
 
-          if (mediaId) {
-            const isResendKey = resendService.isValidResendImageKey(mediaId);
-            if (isResendKey) {
-              try {
-                mediaUrl = await resendService.createPresignedGet(mediaId);
-                derivedFileName = mediaId.split('/').pop() || null;
-              } catch (error) {
-                logger.warn('Failed to create presigned URL for campaign media', {
-                  storeId,
-                  mediaId,
-                  error: error.message,
-                });
-              }
-            }
-            if (!mediaUrl && !isResendKey) {
-              mediaUrl = `/api/whatsapp/media/${encodeURIComponent(mediaId)}`;
+        if (mediaId) {
+          const isResendKey = resendService.isValidResendImageKey(mediaId);
+          if (isResendKey) {
+            try {
+              mediaUrl = await resendService.createPresignedGet(mediaId);
+              derivedFileName = mediaId.split('/').pop() || null;
+            } catch (error) {
+              logger.warn('Failed to create presigned URL for campaign media', {
+                storeId,
+                mediaId,
+                error: error.message
+              });
             }
           }
+          if (!mediaUrl && !isResendKey) {
+            mediaUrl = `/api/whatsapp/media/${encodeURIComponent(mediaId)}`;
+          }
+        }
 
-          const media = mediaId
+        const media =
+          mediaId
             ? {
                 id: mediaId,
                 url: mediaUrl,
                 caption: mediaMetadata?.caption || null,
                 mimeType: mediaMetadata?.mimeType || mediaMetadata?.mime_type || null,
-                fileName:
-                  mediaMetadata?.fileName || mediaMetadata?.filename || derivedFileName || null,
-                sha256: mediaMetadata?.sha256 || null,
+                fileName: mediaMetadata?.fileName || mediaMetadata?.filename || derivedFileName || null,
+                sha256: mediaMetadata?.sha256 || null
               }
             : null;
 
-          return {
-            id: item.message_id || `${item.timestamp}#${item.direction}`,
-            type: item.direction === 'inbound' ? 'received' : 'sent',
-            text: item.body || getMessagePreviewText(item) || '',
-            timestamp: item.timestamp,
-            from: item.direction === 'inbound' ? 'customer' : 'vendor',
-            status: item.direction === 'outbound' ? item.status || 'sent' : null,
-            statusHistory: item.status_history || [],
-            campaignName: item.campaign_name || null,
-            campaignId: item.campaign_id || null,
-            isCampaign: Boolean(item.campaign_name),
-            mediaId: item.media_id || null,
-            templateName: item.template_name || null,
-            messageType,
-            media,
-            location: locationMetadata || null,
-          };
-        })
+        return {
+          id: item.message_id || `${item.timestamp}#${item.direction}`,
+          type: item.direction === 'inbound' ? 'received' : 'sent',
+          text: item.body || getMessagePreviewText(item) || '',
+          timestamp: item.timestamp,
+          from: item.direction === 'inbound' ? 'customer' : 'vendor',
+          status: item.direction === 'outbound' ? item.status || 'sent' : null,
+          statusHistory: item.status_history || [],
+          campaignName: item.campaign_name || null,
+          campaignId: item.campaign_id || null,
+          isCampaign: Boolean(item.campaign_name),
+          mediaId: item.media_id || null,
+          templateName: item.template_name || null,
+          messageType,
+          media,
+          location: locationMetadata || null
+        };
+      })
     );
 
     chatHistory.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-
+    
     const existingCampaignIds = new Set(
-      chatHistory.filter((message) => message.campaignId).map((message) => message.campaignId)
+      chatHistory.filter(message => message.campaignId).map(message => message.campaignId)
     );
 
     // Add campaign details as system messages when a stored message is not present
     const enrichedHistory = [];
-    campaignDetails.forEach((campaign) => {
+    campaignDetails.forEach(campaign => {
       const campaignId = campaign.campaign_id || `${campaign.campaign_name}-${campaign.sent_at}`;
       if (existingCampaignIds.has(campaignId)) {
         return;
@@ -4994,21 +4974,20 @@ router.get('/chat/:userId', async (req, res) => {
         status: campaign.status,
         campaignName: campaign.campaign_name,
         campaignId,
-        isCampaign: true,
+        isCampaign: true
       });
     });
-
+    
     // Merge and sort all messages
-    const allMessages = [...chatHistory, ...enrichedHistory].sort(
-      (a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
-    );
-
+    const allMessages = [...chatHistory, ...enrichedHistory]
+      .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    
     logger.info('Chat history retrieved', {
       storeId,
       userId,
       phoneVariants: phonesToQuery,
       messageCount: allMessages.length,
-      campaignCount: campaignDetails.length,
+      campaignCount: campaignDetails.length
     });
     res.json(allMessages);
   } catch (error) {
@@ -5016,6 +4995,8 @@ router.get('/chat/:userId', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch chat history' });
   }
 });
+
+
 
 // DELETE /chat/:userId - Delete chat history for a specific customer
 router.delete('/chat/:userId', async (req, res) => {
@@ -5036,9 +5017,9 @@ router.delete('/chat/:userId', async (req, res) => {
 
     const queryPhonesParam = req.query.phones;
     if (Array.isArray(queryPhonesParam)) {
-      queryPhonesParam.forEach((phone) => collectPhoneVariants(candidatePhones, phone));
+      queryPhonesParam.forEach(phone => collectPhoneVariants(candidatePhones, phone));
     } else if (typeof queryPhonesParam === 'string') {
-      queryPhonesParam.split(',').forEach((phone) => collectPhoneVariants(candidatePhones, phone));
+      queryPhonesParam.split(',').forEach(phone => collectPhoneVariants(candidatePhones, phone));
     }
 
     if (typeof req.query.normalized === 'string') {
@@ -5064,16 +5045,16 @@ router.delete('/chat/:userId', async (req, res) => {
               FilterExpression: '#store_id = :store',
               ExpressionAttributeValues: {
                 ':phone': phone,
-                ':store': storeId,
+                ':store': storeId
               },
               ExpressionAttributeNames: {
-                '#store_id': 'store_id',
+                '#store_id': 'store_id'
               },
-              ExclusiveStartKey: lastEvaluatedKey,
+              ExclusiveStartKey: lastEvaluatedKey
             })
           );
 
-          (result.Items || []).forEach((item) => {
+          (result.Items || []).forEach(item => {
             if (!item?.timestamp) {
               return;
             }
@@ -5089,7 +5070,7 @@ router.delete('/chat/:userId', async (req, res) => {
         logger.error('Error querying messages for deletion', {
           storeId,
           phoneVariant: phone,
-          error: queryError.message,
+          error: queryError.message
         });
       }
     }
@@ -5105,12 +5086,12 @@ router.delete('/chat/:userId', async (req, res) => {
       const response = await docClient.send(
         new BatchWriteCommand({
           RequestItems: {
-            [WHATSAPP_MESSAGES_TABLE]: chunk.map((key) => ({
+            [WHATSAPP_MESSAGES_TABLE]: chunk.map(key => ({
               DeleteRequest: {
-                Key: key,
-              },
-            })),
-          },
+                Key: key
+              }
+            }))
+          }
         })
       );
 
@@ -5120,7 +5101,7 @@ router.delete('/chat/:userId', async (req, res) => {
         logger.warn('Unprocessed message deletions', {
           storeId,
           userId,
-          unprocessed: unprocessed.length,
+          unprocessed: unprocessed.length
         });
       }
     }
@@ -5128,7 +5109,7 @@ router.delete('/chat/:userId', async (req, res) => {
     logger.info('Deleted chat history', {
       storeId,
       userId,
-      deleted,
+      deleted
     });
 
     res.json({ deleted });
@@ -5142,18 +5123,18 @@ router.delete('/chat/:userId', async (req, res) => {
 router.post('/chat/:userId/send', async (req, res) => {
   const { userId } = req.params;
   const { message, name } = req.body || {};
-
+  
   if (!message || !message.trim()) {
     return res.status(400).json({ error: 'Message text is required' });
   }
-
+  
   try {
     logger.info('Sending message to user', { userId, message });
-
+    
     // Get WhatsApp config from request user context
     const whatsappApiUrl = req.user.whatsapp_api_url;
     const accessToken = req.user.access_token;
-
+    
     if (!whatsappApiUrl || !accessToken) {
       return res.status(400).json({ error: 'WhatsApp configuration not found' });
     }
@@ -5165,27 +5146,27 @@ router.post('/chat/:userId/send', async (req, res) => {
       type: 'text',
       text: {
         preview_url: false,
-        body: message.trim(),
-      },
+        body: message.trim()
+      }
     };
-
+    
     const response = await axios.post(whatsappApiUrl, payload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
     const apiResponse = response.data || {};
-
+    
     // Create event for sent message
     const event = {
       id: apiResponse.messages?.[0]?.id || `sent_${Date.now()}`,
       type: 'sent',
       text: message.trim(),
       timestamp: new Date().toISOString(),
-      recipient: userId,
+      recipient: userId
     };
-
+    
     // Add to event buffer
     EventBuffer.addEvent(event);
 
@@ -5203,24 +5184,24 @@ router.post('/chat/:userId/send', async (req, res) => {
         metadata: {
           phoneNumberId: req.user.phone_number_id || null,
           wabaId: req.user.waba_id || null,
-          displayPhoneNumber: req.user.waba_mobile_number || null,
-        },
+          displayPhoneNumber: req.user.waba_mobile_number || null
+        }
       });
     }
-
+    
     logger.info('Message sent successfully', { userId, messageId: event.id });
-    res.json({
-      success: true,
+    res.json({ 
+      success: true, 
       messageId: event.id,
       timestamp: event.timestamp,
       status: 'sent',
-      whatsappResponse: apiResponse,
+      whatsappResponse: apiResponse
     });
   } catch (error) {
     logger.error('Error sending message', { userId, message, error: error.message });
-    res.status(500).json({
+    res.status(500).json({ 
       error: 'Failed to send message',
-      details: error.message,
+      details: error.message
     });
   }
 });
@@ -5252,7 +5233,7 @@ router.post('/chat/:userId/send-media', upload.single('file'), async (req, res) 
       file,
       phoneNumberId,
       accessToken,
-      graphVersion: req.query.version || GRAPH_API_VERSION,
+      graphVersion: req.query.version || GRAPH_API_VERSION
     });
 
     const payload =
@@ -5264,8 +5245,8 @@ router.post('/chat/:userId/send-media', upload.single('file'), async (req, res) 
             type: 'image',
             image: {
               id: mediaId,
-              caption: caption ? String(caption).trim() : undefined,
-            },
+              caption: caption ? String(caption).trim() : undefined
+            }
           }
         : {
             messaging_product: 'whatsapp',
@@ -5275,15 +5256,15 @@ router.post('/chat/:userId/send-media', upload.single('file'), async (req, res) 
             document: {
               id: mediaId,
               filename: file.originalname || undefined,
-              caption: caption ? String(caption).trim() : undefined,
-            },
+              caption: caption ? String(caption).trim() : undefined
+            }
           };
 
     const response = await axios.post(whatsappApiUrl, payload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
 
     const apiResponse = response.data || {};
@@ -5295,7 +5276,7 @@ router.post('/chat/:userId/send-media', upload.single('file'), async (req, res) 
       type: 'sent',
       text: caption ? String(caption).trim() : '',
       timestamp,
-      recipient: userId,
+      recipient: userId
     });
 
     if (req.user?.store_id) {
@@ -5312,15 +5293,15 @@ router.post('/chat/:userId/send-media', upload.single('file'), async (req, res) 
         metadata: {
           phoneNumberId: req.user.phone_number_id || null,
           wabaId: req.user.waba_id || null,
-          displayPhoneNumber: req.user.waba_mobile_number || null,
+          displayPhoneNumber: req.user.waba_mobile_number || null
         },
         mediaId,
         mediaMetadata: {
           id: mediaId,
           caption: caption ? String(caption).trim() : null,
           mimeType: file.mimetype,
-          fileName: file.originalname || null,
-        },
+          fileName: file.originalname || null
+        }
       });
     }
 
@@ -5330,26 +5311,22 @@ router.post('/chat/:userId/send-media', upload.single('file'), async (req, res) 
       timestamp,
       status: 'sent',
       mediaId,
-      messageType: mediaType.toLowerCase(),
+      messageType: mediaType.toLowerCase()
     });
   } catch (error) {
     logger.error('Error sending media message', {
       userId,
-      error: error.message,
+      error: error.message
     });
     res.status(500).json({
       error: 'Failed to send media message',
-      details: error.message,
+      details: error.message
     });
   }
 });
 
 router.post('/media/upload', upload.single('file'), async (req, res) => {
-  const {
-    store_id: storeId,
-    access_token: accessToken,
-    phone_number_id: phoneNumberId,
-  } = req.user || {};
+  const { store_id: storeId, access_token: accessToken, phone_number_id: phoneNumberId } = req.user || {};
   const mediaType = req.body?.media_type;
   const file = req.file;
   const fileUrl = typeof req.body?.file_url === 'string' ? req.body.file_url.trim() : '';
@@ -5376,7 +5353,7 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
   if (!uploadBuffer && fileUrl) {
     try {
       const downloadResponse = await axios.get(fileUrl, {
-        responseType: 'arraybuffer',
+        responseType: 'arraybuffer'
       });
 
       uploadBuffer = Buffer.from(downloadResponse.data);
@@ -5385,18 +5362,20 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
         (mediaType === 'IMAGE'
           ? 'image/jpeg'
           : mediaType === 'VIDEO'
-            ? 'video/mp4'
-            : mediaType === 'DOCUMENT'
-              ? 'application/pdf'
-              : 'application/octet-stream');
-      uploadSize = Number(downloadResponse.headers['content-length']) || uploadBuffer.length;
+          ? 'video/mp4'
+          : mediaType === 'DOCUMENT'
+          ? 'application/pdf'
+          : 'application/octet-stream');
+      uploadSize =
+        Number(downloadResponse.headers['content-length']) ||
+        uploadBuffer.length;
       const fromUrl = fileUrl.split('/').pop();
       uploadName = (fromUrl ? fromUrl.split('?')[0] : '') || `media_${Date.now()}`;
     } catch (error) {
       logger.error('Failed to download media from URL', {
         storeId,
         fileUrl,
-        error: error.message,
+        error: error.message
       });
       return res.status(400).json({ error: 'Failed to download media from URL' });
     }
@@ -5406,7 +5385,7 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
     return res.status(400).json({ error: 'Media file is required' });
   }
 
-  if (!allowedPrefixes.some((prefix) => uploadMime.startsWith(prefix))) {
+  if (!allowedPrefixes.some(prefix => uploadMime.startsWith(prefix))) {
     return res.status(400).json({ error: `Unsupported media type: ${uploadMime}` });
   }
 
@@ -5416,7 +5395,7 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
       phoneNumberId,
       mimetype: uploadMime,
       size: uploadSize,
-      mediaType,
+      mediaType
     });
 
     const version = req.query.version || GRAPH_API_VERSION;
@@ -5427,12 +5406,12 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
       {
         file_length: uploadSize,
         file_type: uploadMime,
-        file_name: uploadName,
+        file_name: uploadName
       },
       {
         headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+          Authorization: `Bearer ${accessToken}`
+        }
       }
     );
 
@@ -5446,9 +5425,9 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         'Content-Type': uploadMime,
-        file_offset: 0,
+        file_offset: 0
       },
-      maxBodyLength: Infinity,
+      maxBodyLength: Infinity
     });
 
     const mediaHandle = uploadResponse.data?.h || uploadResponse.data?.handle || null;
@@ -5460,12 +5439,12 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
       storeId,
       phoneNumberId,
       uploadId,
-      mediaHandle,
+      mediaHandle
     });
 
     res.json({
       success: true,
-      mediaHandle,
+      mediaHandle
     });
   } catch (error) {
     const status = error.response?.status || 500;
@@ -5476,7 +5455,7 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
       storeId,
       phoneNumberId,
       status,
-      error: errorMessage,
+      error: errorMessage
     });
 
     res.status(status).json({ error: errorMessage });
@@ -5484,11 +5463,7 @@ router.post('/media/upload', upload.single('file'), async (req, res) => {
 });
 
 router.post('/media/upload-message', upload.single('file'), async (req, res) => {
-  const {
-    store_id: storeId,
-    access_token: accessToken,
-    phone_number_id: phoneNumberId,
-  } = req.user || {};
+  const { store_id: storeId, access_token: accessToken, phone_number_id: phoneNumberId } = req.user || {};
   const file = req.file;
 
   if (!storeId) {
@@ -5504,7 +5479,7 @@ router.post('/media/upload-message', upload.single('file'), async (req, res) => 
   }
 
   const allowedPrefixes = ['image/', 'video/', 'application/'];
-  if (!allowedPrefixes.some((prefix) => (file.mimetype || '').startsWith(prefix))) {
+  if (!allowedPrefixes.some(prefix => (file.mimetype || '').startsWith(prefix))) {
     return res.status(400).json({ error: `Unsupported media type: ${file.mimetype}` });
   }
 
@@ -5513,18 +5488,18 @@ router.post('/media/upload-message', upload.single('file'), async (req, res) => 
       file,
       phoneNumberId,
       accessToken,
-      graphVersion: req.query.version || GRAPH_API_VERSION,
+      graphVersion: req.query.version || GRAPH_API_VERSION
     });
 
     logger.info('WhatsApp message media uploaded', {
       storeId,
       phoneNumberId,
-      mediaId,
+      mediaId
     });
 
     res.json({
       success: true,
-      mediaId,
+      mediaId
     });
   } catch (error) {
     const status = error.response?.status || 500;
@@ -5535,7 +5510,7 @@ router.post('/media/upload-message', upload.single('file'), async (req, res) => 
       storeId,
       phoneNumberId,
       status,
-      error: errorMessage,
+      error: errorMessage
     });
 
     res.status(status).json({ error: errorMessage });
@@ -5559,8 +5534,8 @@ router.get('/media/:mediaId', async (req, res) => {
       `https://graph.facebook.com/${GRAPH_API_VERSION}/${encodeURIComponent(mediaId)}`,
       {
         params: {
-          access_token: accessToken,
-        },
+          access_token: accessToken
+        }
       }
     );
 
@@ -5573,12 +5548,14 @@ router.get('/media/:mediaId', async (req, res) => {
     const mediaResponse = await axios.get(downloadUrl, {
       responseType: 'arraybuffer',
       headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+        Authorization: `Bearer ${accessToken}`
+      }
     });
 
     const mimeType =
-      metadata.mime_type || mediaResponse.headers['content-type'] || 'application/octet-stream';
+      metadata.mime_type ||
+      mediaResponse.headers['content-type'] ||
+      'application/octet-stream';
     const fileName = metadata.file_name || `media_${mediaId}`;
 
     res.setHeader('Content-Type', mimeType);
@@ -5604,7 +5581,11 @@ const normalizeGraphTemplateCategory = (value) => {
 };
 
 router.post('/templates', async (req, res) => {
-  const { waba_id: wabaId, access_token: accessToken, store_id: storeId } = req.user || {};
+  const {
+    waba_id: wabaId,
+    access_token: accessToken,
+    store_id: storeId
+  } = req.user || {};
 
   if (!wabaId || !accessToken) {
     logger.warn('Template creation missing WhatsApp credentials', { storeId });
@@ -5622,18 +5603,15 @@ router.post('/templates', async (req, res) => {
     example_header: exampleHeader,
     example_body: exampleBody,
     example_footer: exampleFooter,
-    buttons,
+    buttons
   } = req.body || {};
 
   if (!name || (!body && !(Array.isArray(providedComponents) && providedComponents.length > 0))) {
-    return res
-      .status(400)
-      .json({ error: 'Template name and components with body text are required' });
+    return res.status(400).json({ error: 'Template name and components with body text are required' });
   }
 
   let components = [];
-  const usingProvidedComponents =
-    Array.isArray(providedComponents) && providedComponents.length > 0;
+  const usingProvidedComponents = Array.isArray(providedComponents) && providedComponents.length > 0;
 
   if (usingProvidedComponents) {
     components = providedComponents;
@@ -5643,12 +5621,12 @@ router.post('/templates', async (req, res) => {
     const headerComponent = {
       type: 'HEADER',
       format: 'TEXT',
-      text: header.trim(),
+      text: header.trim()
     };
     const headerExample = parseExampleList(exampleHeader);
     if (headerExample && headerExample.length > 0) {
       headerComponent.example = {
-        header_text: headerExample,
+        header_text: headerExample
       };
     }
     components.push(headerComponent);
@@ -5657,12 +5635,12 @@ router.post('/templates', async (req, res) => {
   if (components.length === 0 && body && body.trim()) {
     const bodyComponent = {
       type: 'BODY',
-      text: body.trim(),
+      text: body.trim()
     };
     const bodyExample = parseExampleList(exampleBody);
     if (bodyExample && bodyExample.length > 0) {
       bodyComponent.example = {
-        body_text: [bodyExample],
+        body_text: [bodyExample]
       };
     }
     components.push(bodyComponent);
@@ -5671,12 +5649,12 @@ router.post('/templates', async (req, res) => {
   if (components.length === 0 && footer && footer.trim()) {
     const footerComponent = {
       type: 'FOOTER',
-      text: footer.trim(),
+      text: footer.trim()
     };
     const footerExample = parseExampleList(exampleFooter);
     if (footerExample && footerExample.length > 0) {
       footerComponent.example = {
-        footer_text: footerExample,
+        footer_text: footerExample
       };
     }
     components.push(footerComponent);
@@ -5684,18 +5662,18 @@ router.post('/templates', async (req, res) => {
 
   if (!usingProvidedComponents && Array.isArray(buttons) && buttons.length > 0) {
     const parsedButtons = buttons
-      .map((button) => ({
+      .map(button => ({
         type: button.type,
         text: button.text,
         url: button.url,
-        phone_number: button.phone_number,
+        phone_number: button.phone_number
       }))
-      .filter((button) => button.type && button.text);
+      .filter(button => button.type && button.text);
 
     if (parsedButtons.length > 0) {
       components.push({
         type: 'BUTTONS',
-        buttons: parsedButtons,
+        buttons: parsedButtons
       });
     }
   }
@@ -5707,11 +5685,7 @@ router.post('/templates', async (req, res) => {
   const version = req.query.version || GRAPH_API_VERSION;
   const url = `https://graph.facebook.com/${version}/${wabaId}/message_templates`;
 
-  let sanitizedName = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/^_+|_+$/g, '');
+  let sanitizedName = name.trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
   if (!sanitizedName) {
     sanitizedName = `template_${Date.now()}`;
   }
@@ -5720,7 +5694,7 @@ router.post('/templates', async (req, res) => {
     name: sanitizedName,
     language,
     category: normalizeGraphTemplateCategory(category),
-    components,
+    components
   };
 
   try {
@@ -5729,18 +5703,18 @@ router.post('/templates', async (req, res) => {
       wabaId,
       template: payload.name,
       componentCount: payload.components?.length || 0,
-      payload,
+      payload
     });
     const response = await axios.post(url, payload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
 
     res.status(201).json({
       success: true,
-      template: response.data,
+      template: response.data
     });
   } catch (error) {
     const status = error.response?.status || 500;
@@ -5756,21 +5730,27 @@ router.post('/templates', async (req, res) => {
       wabaId,
       status,
       error: userMessage,
-      details: error.response?.data,
+      details: error.response?.data
     });
     res.status(status).json({
       error: userMessage,
-      details: error.response?.data || null,
+      details: error.response?.data || null
     });
   }
 });
 
 router.put('/templates/:templateId', async (req, res) => {
-  const { waba_id: wabaId, access_token: accessToken, store_id: storeId } = req.user || {};
+  const {
+    waba_id: wabaId,
+    access_token: accessToken,
+    store_id: storeId
+  } = req.user || {};
 
   if (!wabaId || !accessToken) {
     logger.warn('Template update missing WhatsApp credentials', { storeId });
-    return res.status(400).json({ error: 'WhatsApp configuration not available for this store' });
+    return res
+      .status(400)
+      .json({ error: 'WhatsApp configuration not available for this store' });
   }
 
   const templateId = (req.params.templateId || '').trim();
@@ -5779,11 +5759,7 @@ router.put('/templates/:templateId', async (req, res) => {
   }
 
   const payload = req.body && typeof req.body === 'object' ? req.body : {};
-  if (
-    !payload?.components ||
-    !Array.isArray(payload.components) ||
-    payload.components.length === 0
-  ) {
+  if (!payload?.components || !Array.isArray(payload.components) || payload.components.length === 0) {
     return res.status(400).json({ error: 'Template update requires valid components' });
   }
 
@@ -5798,19 +5774,19 @@ router.put('/templates/:templateId', async (req, res) => {
     logger.info('Updating WhatsApp template', {
       storeId,
       wabaId,
-      templateId,
+      templateId
     });
 
     const response = await axios.post(url, payload, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
 
     res.json({
       success: true,
-      data: response.data || null,
+      data: response.data || null
     });
   } catch (error) {
     const status = error.response?.status || 500;
@@ -5823,18 +5799,22 @@ router.put('/templates/:templateId', async (req, res) => {
       templateId,
       status,
       error: errorMessage,
-      details: error.response?.data,
+      details: error.response?.data
     });
 
     res.status(status).json({
       error: errorMessage,
-      details: error.response?.data || null,
+      details: error.response?.data || null
     });
   }
 });
 
 router.delete('/templates/:identifier', async (req, res) => {
-  const { waba_id: wabaId, access_token: accessToken, store_id: storeId } = req.user || {};
+  const {
+    waba_id: wabaId,
+    access_token: accessToken,
+    store_id: storeId
+  } = req.user || {};
 
   if (!wabaId || !accessToken) {
     logger.warn('Template delete missing WhatsApp credentials', { storeId });
@@ -5856,21 +5836,21 @@ router.delete('/templates/:identifier', async (req, res) => {
     logger.info('Deleting WhatsApp template', {
       storeId,
       wabaId,
-      templateName,
+      templateName
     });
 
     await axios.delete(url, {
       params: {
-        name: templateName,
+        name: templateName
       },
       headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
+        Authorization: `Bearer ${accessToken}`
+      }
     });
 
     res.json({
       success: true,
-      message: 'Template deleted',
+      message: 'Template deleted'
     });
   } catch (error) {
     const status = error.response?.status || 500;
@@ -5883,7 +5863,7 @@ router.delete('/templates/:identifier', async (req, res) => {
       templateName,
       status,
       error: errorMessage,
-      details: error.response?.data,
+      details: error.response?.data
     });
 
     res.status(status).json({ error: errorMessage });
@@ -5893,22 +5873,22 @@ router.delete('/templates/:identifier', async (req, res) => {
 // GET /customers - Get unique customers for a store from invoices
 router.get('/customers', async (req, res) => {
   const { storeId } = req.query;
-
+  
   if (!storeId) {
     return res.status(400).json({ error: 'storeId is required' });
   }
-
+  
   try {
     logger.info('Fetching customers for store from invoices', { storeId });
-
+    
     // Use analytics service to get invoices for the store
     const analyticsService = require('../services/analyticsService');
     const invoices = await analyticsService.getInvoices(storeId);
-
+    
     // Extract unique customer phone numbers from invoices
     const customerPhones = new Set();
-
-    invoices.forEach((invoice) => {
+    
+    invoices.forEach(invoice => {
       if (invoice.customer_phone) {
         const normalized = formatPhoneWithCountryDigits(invoice.customer_phone);
         if (normalized) {
@@ -5916,12 +5896,12 @@ router.get('/customers', async (req, res) => {
         }
       }
     });
-
+    
     // Convert to array of customer objects
-    const customers = Array.from(customerPhones).map((phone) => ({
-      phone,
+    const customers = Array.from(customerPhones).map(phone => ({
+      phone
     }));
-
+    
     logger.info('Customers retrieved from invoices', { storeId, count: customers.length });
     res.json(customers);
   } catch (error) {
@@ -5933,31 +5913,31 @@ router.get('/customers', async (req, res) => {
 // GET /campaigns - Get recent campaigns for a store (per customer rows)
 router.get('/campaigns', async (req, res) => {
   const { storeId } = req.query;
-
+  
   if (!storeId) {
     return res.status(400).json({ error: 'storeId is required' });
   }
-
+  
   try {
     logger.info('Fetching campaigns for store', { storeId });
-
+    
     // Get campaign events from event buffer
     const events = EventBuffer.getEvents();
-    const campaignEvents = events.filter((event) => event.type === 'campaign');
-
+    const campaignEvents = events.filter(event => event.type === 'campaign');
+    
     // Transform events into per-customer campaign rows
-    const campaigns = campaignEvents.map((event) => ({
+    const campaigns = campaignEvents.map(event => ({
       campaignName: event.campaignName || 'Unknown Campaign',
       templateName: event.templateName || null,
       customerPhone: event.recipient,
       customerName: event.customerName || `Customer ${event.recipient}`,
       sentDate: event.timestamp,
-      status: event.success !== false ? 'delivered' : 'failed',
+      status: event.success !== false ? 'delivered' : 'failed'
     }));
-
+    
     // Sort by most recent first
     campaigns.sort((a, b) => new Date(b.sentDate).getTime() - new Date(a.sentDate).getTime());
-
+    
     logger.info('Campaigns retrieved', { storeId, count: campaigns.length });
     res.json(campaigns);
   } catch (error) {
@@ -5983,7 +5963,7 @@ router.post('/campaigns/quota-check', async (req, res) => {
         const franchiseResult = await docClient.send(
           new GetCommand({
             TableName: FRANCHISES_TABLE,
-            Key: { franchise_id: franchiseId },
+            Key: { franchise_id: franchiseId }
           })
         );
         const configuredLimit = Number(franchiseResult?.Item?.campaign_free_messages);
@@ -5994,7 +5974,7 @@ router.post('/campaigns/quota-check', async (req, res) => {
         logger.warn('Failed to load franchise campaign limit', {
           storeId,
           franchiseId,
-          error: error.message,
+          error: error.message
         });
       }
     }
@@ -6021,7 +6001,7 @@ router.post('/campaigns/quota-check', async (req, res) => {
       remaining,
       requested,
       allowed,
-      franchiseId,
+      franchiseId
     });
   } catch (error) {
     logger.error('Failed to check campaign quota', { storeId, error: error.message });
@@ -6039,13 +6019,11 @@ router.post('/campaigns/send', async (req, res) => {
     templateParameters,
     templateName: requestTemplateName,
     campaignId: requestedCampaignId,
-    resendSettings: rawResendSettings,
+    resendSettings: rawResendSettings
   } = req.body;
 
   if (!name || !message || !storeId || !recipients || !Array.isArray(recipients)) {
-    return res
-      .status(400)
-      .json({ error: 'name, message, storeId, and recipients array are required' });
+    return res.status(400).json({ error: 'name, message, storeId, and recipients array are required' });
   }
 
   if (
@@ -6053,9 +6031,7 @@ router.post('/campaigns/send', async (req, res) => {
     !Array.isArray(templateParameters) &&
     typeof templateParameters !== 'object'
   ) {
-    return res
-      .status(400)
-      .json({ error: 'templateParameters must be an array or object if provided' });
+    return res.status(400).json({ error: 'templateParameters must be an array or object if provided' });
   }
 
   try {
@@ -6067,9 +6043,7 @@ router.post('/campaigns/send', async (req, res) => {
     const templateLanguage = req.user.template_language || 'en_US';
 
     if (!templateName) {
-      return res
-        .status(400)
-        .json({ error: 'WhatsApp template name not provided and not configured for this store' });
+      return res.status(400).json({ error: 'WhatsApp template name not provided and not configured for this store' });
     }
 
     const whatsappApiUrl = req.user?.whatsapp_api_url;
@@ -6087,14 +6061,12 @@ router.post('/campaigns/send', async (req, res) => {
       access_token: accessToken,
       phone_number_id: req.user?.phone_number_id || null,
       waba_id: req.user?.waba_id || null,
-      waba_mobile_number: req.user?.waba_mobile_number || null,
+      waba_mobile_number: req.user?.waba_mobile_number || null
     };
 
     const resendSettings = normalizeResendSettingsInput(rawResendSettings);
     if (resendSettings.enabled && !resendService.delayOptionToSeconds(resendSettings.delayOption)) {
-      return res
-        .status(400)
-        .json({ error: 'resendSettings.delayOption must be one of 2m, 5m, 1h, 2h, 1d, 2d' });
+      return res.status(400).json({ error: 'resendSettings.delayOption must be one of 2m, 5m, 1h, 2h, 1d, 2d' });
     }
 
     try {
@@ -6109,13 +6081,13 @@ router.post('/campaigns/send', async (req, res) => {
         send_mode: 'text',
         resend_enabled: resendSettings.enabled,
         resend_delay_option: resendSettings.delayOption || null,
-        created_at: new Date().toISOString(),
+        created_at: new Date().toISOString()
       });
     } catch (metadataError) {
       logger.warn('Failed to persist campaign metadata', {
         campaignId,
         storeId,
-        error: metadataError.message,
+        error: metadataError.message
       });
     }
 
@@ -6124,25 +6096,25 @@ router.post('/campaigns/send', async (req, res) => {
       const delaySeconds = resendService.delayOptionToSeconds(resendSettings.delayOption);
       const scheduledAt = new Date(Date.now() + delaySeconds * 1000).toISOString();
       resendAttemptId = randomUUID();
-      try {
-        await resendService.createResendAttempt({
-          resend_attempt_id: resendAttemptId,
-          campaign_id: campaignId,
-          store_id: userContext.store_id || storeId,
-          scheduled_at: scheduledAt,
-          created_at: new Date().toISOString(),
-          delay_option: resendSettings.delayOption,
-          attempt_number: 1,
-          max_attempts: RESEND_MAX_ATTEMPTS,
-          status: 'SCHEDULED',
-          eligible_count: 0,
-          created_by: req.user?.user_id || req.user?.email || null,
-        });
+    try {
+      await resendService.createResendAttempt({
+        resend_attempt_id: resendAttemptId,
+        campaign_id: campaignId,
+        store_id: userContext.store_id || storeId,
+        scheduled_at: scheduledAt,
+        created_at: new Date().toISOString(),
+        delay_option: resendSettings.delayOption,
+        attempt_number: 1,
+        max_attempts: RESEND_MAX_ATTEMPTS,
+        status: 'SCHEDULED',
+        eligible_count: 0,
+        created_by: req.user?.user_id || req.user?.email || null
+      });
       } catch (resendError) {
         logger.warn('Failed to create resend schedule for campaign', {
           campaignId,
           storeId,
-          error: resendError.message,
+          error: resendError.message
         });
       }
     }
@@ -6152,14 +6124,14 @@ router.post('/campaigns/send', async (req, res) => {
       storeId,
       campaignName: name,
       templateName,
-      recipients,
+      recipients
     });
 
     logger.info('Queued campaign for sending', {
       name,
       storeId,
       recipientCount: recipients.length,
-      campaignId,
+      campaignId
     });
 
     setImmediate(() => {
@@ -6173,8 +6145,8 @@ router.post('/campaigns/send', async (req, res) => {
         templateName,
         templateLanguage,
         userContext,
-        resendSettings,
-      }).catch((error) => {
+        resendSettings
+      }).catch(error => {
         logger.error('Background campaign send failed', { campaignId, error: error.message });
       });
     });
@@ -6184,7 +6156,7 @@ router.post('/campaigns/send', async (req, res) => {
     logger.error('Error queuing campaign', { name, storeId, error: error.message });
     res.status(500).json({
       error: 'Failed to queue campaign',
-      details: error.message,
+      details: error.message
     });
   }
 });
@@ -6225,7 +6197,7 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
     campaignId: requestedCampaignId,
     resendSettings: rawResendSettings,
     headerImageS3Key: requestHeaderImageS3Key,
-    header_image_s3_key: requestHeaderImageS3KeyAlt,
+    header_image_s3_key: requestHeaderImageS3KeyAlt
   } = req.body || {};
 
   if (!name || !storeId) {
@@ -6244,22 +6216,15 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
   }
 
   let templateParameters = null;
-  if (
-    rawTemplateParameters !== undefined &&
-    rawTemplateParameters !== null &&
-    rawTemplateParameters !== ''
-  ) {
+  if (rawTemplateParameters !== undefined && rawTemplateParameters !== null && rawTemplateParameters !== '') {
     try {
-      const parsed =
-        typeof rawTemplateParameters === 'string'
-          ? JSON.parse(rawTemplateParameters)
-          : rawTemplateParameters;
+      const parsed = typeof rawTemplateParameters === 'string'
+        ? JSON.parse(rawTemplateParameters)
+        : rawTemplateParameters;
       if (Array.isArray(parsed) || (parsed && typeof parsed === 'object')) {
         templateParameters = parsed;
       } else {
-        return res
-          .status(400)
-          .json({ error: 'templateParameters must be an array or object when provided' });
+        return res.status(400).json({ error: 'templateParameters must be an array or object when provided' });
       }
     } catch (error) {
       return res.status(400).json({ error: 'templateParameters must be valid JSON' });
@@ -6276,7 +6241,7 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
     template_language: req.user?.template_language || 'en_US',
     store_id: req.user?.store_id || storeId,
     waba_id: req.user?.waba_id || null,
-    waba_mobile_number: req.user?.waba_mobile_number || null,
+    waba_mobile_number: req.user?.waba_mobile_number || null
   };
 
   if (!userContext.whatsapp_api_url || !userContext.access_token || !userContext.phone_number_id) {
@@ -6303,9 +6268,7 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
   }
   const resendSettings = normalizeResendSettingsInput(parsedResendSettings);
   if (resendSettings.enabled && !resendService.delayOptionToSeconds(resendSettings.delayOption)) {
-    return res
-      .status(400)
-      .json({ error: 'resendSettings.delayOption must be one of 2m, 5m, 1h, 2h, 1d, 2d' });
+    return res.status(400).json({ error: 'resendSettings.delayOption must be one of 2m, 5m, 1h, 2h, 1d, 2d' });
   }
 
   if (!resendSettings.enabled && !file) {
@@ -6321,7 +6284,7 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
     storeId,
     campaignName: name,
     templateName,
-    recipients,
+    recipients
   });
 
   try {
@@ -6337,13 +6300,13 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
       header_image_s3_key: headerImageS3Key,
       resend_enabled: resendSettings.enabled,
       resend_delay_option: resendSettings.delayOption || null,
-      created_at: new Date().toISOString(),
+      created_at: new Date().toISOString()
     });
   } catch (metadataError) {
     logger.warn('Failed to persist image campaign metadata', {
       campaignId,
       storeId,
-      error: metadataError.message,
+      error: metadataError.message
     });
   }
 
@@ -6354,7 +6317,7 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
         filename: file.originalname,
         mimetype: file.mimetype,
         size: file.size,
-        graphVersion: version,
+        graphVersion: version
       }
     : null;
 
@@ -6375,13 +6338,13 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
         max_attempts: RESEND_MAX_ATTEMPTS,
         status: 'SCHEDULED',
         eligible_count: 0,
-        created_by: req.user?.user_id || req.user?.email || null,
+        created_by: req.user?.user_id || req.user?.email || null
       });
     } catch (resendError) {
       logger.warn('Failed to create resend schedule for image campaign', {
         campaignId,
         storeId,
-        error: resendError.message,
+        error: resendError.message
       });
     }
   }
@@ -6390,7 +6353,7 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
     name,
     storeId,
     recipientCount: recipients.length,
-    campaignId,
+    campaignId
   });
 
   setImmediate(() => {
@@ -6406,17 +6369,18 @@ router.post('/campaigns/send-image-template', upload.single('image'), async (req
       userContext,
       headerImageS3Key,
       mediaPayload,
-      resendSettings,
-    }).catch((error) => {
+      resendSettings
+    }).catch(error => {
       logger.error('Background image campaign send failed', {
         campaignId,
-        error: error.message,
+        error: error.message
       });
     });
   });
 
   res.json({ success: true, campaignId, resendAttemptId });
 });
+
 
 router.get('/campaigns/:campaignId/resend', async (req, res) => {
   const campaignId = req.params.campaignId;
@@ -6441,7 +6405,7 @@ router.get('/campaigns/:campaignId/resend', async (req, res) => {
 
     const attempts = await resendService.listResendAttemptsByCampaignId(campaignId);
     const normalized = await Promise.all(
-      attempts.map(async (item) => {
+      attempts.map(async item => {
         let sentCount = item.attempted_count ?? 0;
         let deliveredCount = item.success_count ?? 0;
         let failedCount = item.failed_count ?? 0;
@@ -6453,22 +6417,22 @@ router.get('/campaigns/:campaignId/resend', async (req, res) => {
               item.resend_attempt_id
             );
             if (recipients.length > 0) {
-              const statuses = recipients.map((recipient) =>
+              const statuses = recipients.map(recipient =>
                 (recipient.status || '').toString().toUpperCase()
               );
-              sentCount = statuses.filter((status) => status && status !== 'QUEUED').length;
-              deliveredCount = statuses.filter((status) =>
+              sentCount = statuses.filter(status => status && status !== 'QUEUED').length;
+              deliveredCount = statuses.filter(status =>
                 ['DELIVERED', 'READ', 'SEEN'].includes(status)
               ).length;
-              limitedByMetaCount = statuses.filter((status) => status === 'LIMITED_BY_META').length;
-              failedCount = statuses.filter((status) =>
+              limitedByMetaCount = statuses.filter(status => status === 'LIMITED_BY_META').length;
+              failedCount = statuses.filter(status =>
                 ['FAILED', 'LIMITED_BY_META'].includes(status)
               ).length;
             }
           } catch (countError) {
             logger.warn('Failed to compute resend recipient counts', {
               resendAttemptId: item.resend_attempt_id,
-              error: countError.message,
+              error: countError.message
             });
           }
         }
@@ -6486,7 +6450,7 @@ router.get('/campaigns/:campaignId/resend', async (req, res) => {
           successCount: deliveredCount,
           failedCount,
           limitedByMetaCount,
-          lastError: item.last_error || null,
+          lastError: item.last_error || null
         };
       })
     );
@@ -6502,7 +6466,7 @@ router.get('/campaigns/:campaignId/resend', async (req, res) => {
     logger.error('Failed to fetch resend attempts', {
       campaignId,
       storeId,
-      error: error.message,
+      error: error.message
     });
     return res.status(500).json({ error: 'Unable to fetch resend history.' });
   }
@@ -6527,22 +6491,20 @@ router.post('/campaigns/:campaignId/stop', async (req, res) => {
     await resendService.updateCampaignMetadata(campaignId, {
       resend_enabled: false,
       resend_stopped: true,
-      resend_stopped_at: new Date().toISOString(),
+      resend_stopped_at: new Date().toISOString()
     });
 
     const attempts = await resendService.listResendAttemptsByCampaignId(campaignId).catch(() => []);
     const toCancel = attempts.filter(
-      (attempt) => (attempt.status || '').toString().toUpperCase() === 'SCHEDULED'
+      attempt => (attempt.status || '').toString().toUpperCase() === 'SCHEDULED'
     );
     await Promise.all(
-      toCancel.map((attempt) =>
-        resendService
-          .updateResendAttemptStatus({
-            resendAttemptId: attempt.resend_attempt_id,
-            status: 'CANCELLED',
-            updates: { last_error: 'Stopped by user.' },
-          })
-          .catch(() => null)
+      toCancel.map(attempt =>
+        resendService.updateResendAttemptStatus({
+          resendAttemptId: attempt.resend_attempt_id,
+          status: 'CANCELLED',
+          updates: { last_error: 'Stopped by user.' }
+        }).catch(() => null)
       )
     );
 
@@ -6551,7 +6513,7 @@ router.post('/campaigns/:campaignId/stop', async (req, res) => {
     logger.error('Failed to stop campaign resend', {
       campaignId,
       storeId,
-      error: error.message,
+      error: error.message
     });
     return res.status(500).json({ error: 'Unable to stop campaign.' });
   }
@@ -6586,20 +6548,20 @@ router.post('/campaigns/:campaignId/resend', async (req, res) => {
     if (clientRequestId) {
       const existing = await resendService.findAttemptByClientRequest({
         campaignId,
-        clientRequestId,
+        clientRequestId
       });
       if (existing) {
         return res.json({
           resendAttemptId: existing.resend_attempt_id,
           scheduledAt: existing.scheduled_at,
           eligibleCount: existing.eligible_count ?? 0,
-          status: existing.status,
+          status: existing.status
         });
       }
     }
 
     const campaignRecipients = await analyticsService.getCampaignRecipients(storeId, {
-      campaignId,
+      campaignId
     });
     const recipients = Array.isArray(campaignRecipients?.recipients)
       ? campaignRecipients.recipients
@@ -6607,7 +6569,7 @@ router.post('/campaigns/:campaignId/resend', async (req, res) => {
     const eligible = recipients.filter(isResendEligible);
     const deduped = [];
     const seenPhones = new Set();
-    eligible.forEach((recipient) => {
+    eligible.forEach(recipient => {
       const phone = recipient.phone || recipient.customer_phone || '';
       if (!phone || seenPhones.has(phone)) {
         return;
@@ -6618,7 +6580,7 @@ router.post('/campaigns/:campaignId/resend', async (req, res) => {
         name: recipient.name || recipient.customer_name || null,
         status: recipient.status || 'failed',
         error: recipient.error || recipient.error_reason || null,
-        errorCode: recipient.errorCode ?? recipient.error_code ?? null,
+        errorCode: recipient.errorCode ?? recipient.error_code ?? null
       });
     });
 
@@ -6644,12 +6606,12 @@ router.post('/campaigns/:campaignId/resend', async (req, res) => {
       success_count: 0,
       failed_count: 0,
       limited_by_meta_count: 0,
-      created_by: req.user?.user_id || req.user?.email || storeId || null,
+      created_by: req.user?.user_id || req.user?.email || storeId || null
     };
 
     await resendService.createResendAttempt(attemptItem);
 
-    const recipientItems = deduped.map((recipient) => ({
+    const recipientItems = deduped.map(recipient => ({
       resend_attempt_id: resendAttemptId,
       phone: recipient.phone,
       name: recipient.name,
@@ -6658,7 +6620,7 @@ router.post('/campaigns/:campaignId/resend', async (req, res) => {
       error_reason: recipient.error || null,
       error_code: recipient.errorCode ?? null,
       created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
     }));
 
     await resendService.batchWriteRecipients(recipientItems);
@@ -6666,13 +6628,13 @@ router.post('/campaigns/:campaignId/resend', async (req, res) => {
     return res.json({
       resendAttemptId,
       scheduledAt,
-      eligibleCount: deduped.length,
+      eligibleCount: deduped.length
     });
   } catch (error) {
     logger.error('Failed to schedule resend', {
       campaignId,
       storeId,
-      error: error.message,
+      error: error.message
     });
     return res.status(500).json({ error: 'Unable to schedule resend.' });
   }
@@ -6684,7 +6646,7 @@ router.post('/invoices/send-ebill', async (req, res) => {
     invoiceNo,
     invoiceId,
     phoneNumber,
-    originalCustomerPhone,
+    originalCustomerPhone
   } = req.body || {};
 
   const storeId = (requestStoreId || req.user?.store_id || '').toString().trim();
@@ -6722,11 +6684,11 @@ router.post('/invoices/send-ebill', async (req, res) => {
         storeId,
         invoiceNo,
         invoiceId,
-        attemptedKeys,
+        attemptedKeys
       });
       return res.status(404).json({
         error: 'Invoice link not found',
-        details: { attemptedKeys },
+        details: { attemptedKeys }
       });
     }
 
@@ -6742,13 +6704,15 @@ router.post('/invoices/send-ebill', async (req, res) => {
         storeId,
         invoiceNo,
         invoiceId,
-        record: slugRecord,
+        record: slugRecord
       });
       return res.status(500).json({ error: 'Bill slug record is missing slug value' });
     }
 
     const ebillBase = process.env.E_BILL_URL || process.env.EBILL_BASE_URL || 'ebill.billbox.co.in';
-    const ebillBaseWithProtocol = ebillBase.startsWith('http') ? ebillBase : `https://${ebillBase}`;
+    const ebillBaseWithProtocol = ebillBase.startsWith('http')
+      ? ebillBase
+      : `https://${ebillBase}`;
     const ebillUrl = `${ebillBaseWithProtocol.replace(/\/+$/, '')}/${slug}`;
 
     const storeConfig = await getStoreConfigById(storeId);
@@ -6760,18 +6724,17 @@ router.post('/invoices/send-ebill', async (req, res) => {
         : null);
     const accessToken = storeConfig?.access_token || req.user?.access_token;
     const templateName = storeConfig?.template_name || req.user?.template_name;
-    const templateLanguage =
-      storeConfig?.template_language || req.user?.template_language || 'en_US';
+    const templateLanguage = storeConfig?.template_language || req.user?.template_language || 'en_US';
 
     if (!accessToken || !whatsappApiUrl || !templateName) {
       logger.warn('Missing WhatsApp configuration for e-bill send', {
         storeId,
         hasAccessToken: Boolean(accessToken),
         hasApiUrl: Boolean(whatsappApiUrl),
-        templateName,
+        templateName
       });
       return res.status(400).json({
-        error: 'WhatsApp configuration is incomplete for this store',
+        error: 'WhatsApp configuration is incomplete for this store'
       });
     }
 
@@ -6796,18 +6759,18 @@ router.post('/invoices/send-ebill', async (req, res) => {
         storeId,
         phoneNumber,
         status,
-        error: errorMessage,
+        error: errorMessage
       });
 
       return res.status(status).json({
-        error: errorMessage,
+        error: errorMessage
       });
     }
 
     res.json({
       success: true,
       invoiceLink: ebillUrl,
-      templateName,
+      templateName
     });
 
     setImmediate(() => {
@@ -6818,14 +6781,14 @@ router.post('/invoices/send-ebill', async (req, res) => {
           storeId,
           usageType: 'ebill_invoice',
           sourceId: billingSourceId,
-          storeConfig,
+          storeConfig
         })
         .catch((error) => {
           logger.error('Failed to record e-bill usage charge', {
             storeId,
             invoiceId,
             invoiceNo,
-            error: error.message,
+            error: error.message
           });
         });
     });
@@ -6847,7 +6810,7 @@ router.post('/invoices/send-ebill', async (req, res) => {
           logger.warn('Unable to persist updated customer phone after e-bill send', {
             storeId,
             invoiceNo,
-            invoiceId,
+            invoiceId
           });
         }
       });
@@ -6857,11 +6820,11 @@ router.post('/invoices/send-ebill', async (req, res) => {
       storeId,
       invoiceNo,
       invoiceId,
-      error: error.message,
+      error: error.message
     });
     res.status(500).json({
       error: 'Failed to send e-bill message',
-      details: error.message,
+      details: error.message
     });
   }
 });
@@ -6877,17 +6840,17 @@ const sanitizeOptionalString = (value, maxLength = 512) => {
   return normalized.slice(0, maxLength);
 };
 
-const sanitizeWebsiteList = (value) => {
+const sanitizeWebsiteList = value => {
   if (!Array.isArray(value)) {
     return [];
   }
   return value
-    .map((item) => sanitizeOptionalString(item, 512))
+    .map(item => sanitizeOptionalString(item, 512))
     .filter(Boolean)
     .slice(0, 2);
 };
 
-const buildBusinessProfileInput = (payload) => ({
+const buildBusinessProfileInput = payload => ({
   address: sanitizeOptionalString(payload?.address, 256),
   description: sanitizeOptionalString(payload?.description, 512),
   vertical: sanitizeOptionalString(payload?.vertical, 64),
@@ -6901,21 +6864,21 @@ const buildBusinessProfileInput = (payload) => ({
     typeof payload?.is_registered === 'boolean'
       ? payload.is_registered
       : typeof payload?.is_registered === 'string'
-        ? payload.is_registered.toLowerCase() === 'yes'
-        : null,
+      ? payload.is_registered.toLowerCase() === 'yes'
+      : null,
   customer_care_email: sanitizeOptionalString(payload?.customer_care_email, 320),
   customer_care_phone: sanitizeOptionalString(payload?.customer_care_phone, 32),
   grievance_officer_name: sanitizeOptionalString(payload?.grievance_officer_name, 180),
   grievance_officer_phone: sanitizeOptionalString(payload?.grievance_officer_phone, 32),
   grievance_officer_alt_phone: sanitizeOptionalString(payload?.grievance_officer_alt_phone, 32),
-  logo_handle: sanitizeOptionalString(payload?.logo_handle, 512),
+  logo_handle: sanitizeOptionalString(payload?.logo_handle, 512)
 });
 
-const buildWhatsAppBusinessProfilePayload = (input) => {
+const buildWhatsAppBusinessProfilePayload = input => {
   const payload = {
-    messaging_product: 'whatsapp',
+    messaging_product: 'whatsapp'
   };
-  const assign = (key) => {
+  const assign = key => {
     const value = input[key];
     if (value === null || value === undefined) {
       return;
@@ -6961,12 +6924,13 @@ router.get('/business-profile', async (req, res) => {
         const url = `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/whatsapp_business_profile`;
         const response = await axios.get(url, {
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${accessToken}`
           },
           params: {
-            fields: 'about,address,description,email,websites,vertical,profile_picture_url',
+            fields:
+              'about,address,description,email,websites,vertical,profile_picture_url'
           },
-          timeout: 10000,
+          timeout: 10000
         });
         const graphRecord = Array.isArray(response.data?.data)
           ? response.data.data[0] || null
@@ -6979,13 +6943,13 @@ router.get('/business-profile', async (req, res) => {
             email: graphRecord.email || null,
             websites: Array.isArray(graphRecord.websites) ? graphRecord.websites : [],
             vertical: graphRecord.vertical || null,
-            profile_picture_url: graphRecord.profile_picture_url || null,
+            profile_picture_url: graphRecord.profile_picture_url || null
           };
         }
       } catch (error) {
         logger.warn('Failed to fetch WhatsApp business profile from Graph API', {
           storeId,
-          error: error.message,
+          error: error.message
         });
       }
     }
@@ -7003,7 +6967,7 @@ router.get('/business-profile', async (req, res) => {
             ? storedProfile.websites
             : whatsappProfile?.websites || [],
         profile_picture_handle: storedProfile.profile_picture_handle || null,
-        profile_picture_url: whatsappProfile?.profile_picture_url || null,
+        profile_picture_url: whatsappProfile?.profile_picture_url || null
       },
       compliance: {
         legal_business_name: storedCompliance.legal_business_name || null,
@@ -7017,12 +6981,12 @@ router.get('/business-profile', async (req, res) => {
         grievance_officer_name: storedCompliance.grievance_officer_name || null,
         grievance_officer_phone: storedCompliance.grievance_officer_phone || null,
         grievance_officer_alt_phone: storedCompliance.grievance_officer_alt_phone || null,
-        logo_handle: storedCompliance.logo_handle || storedProfile.profile_picture_handle || null,
-      },
+        logo_handle: storedCompliance.logo_handle || storedProfile.profile_picture_handle || null
+      }
     });
   } catch (error) {
     logger.error('Failed to load business profile settings', {
-      error: error.message,
+      error: error.message
     });
     return res.status(500).json({ error: 'Failed to load business profile.' });
   }
@@ -7046,13 +7010,17 @@ router.post('/business-profile', async (req, res) => {
     const graphVersion = process.env.GRAPH_API_VERSION || 'v18.0';
     const url = `https://graph.facebook.com/${graphVersion}/${phoneNumberId}/whatsapp_business_profile`;
 
-    const response = await axios.post(url, payload, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      timeout: 10000,
-    });
+    const response = await axios.post(
+      url,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 10000
+      }
+    );
 
     const currentStoreConfig = await getStoreConfigById(storeId);
     const existingBusinessProfile = currentStoreConfig?.business_profile || {};
@@ -7068,7 +7036,7 @@ router.post('/business-profile', async (req, res) => {
       email: input.email,
       websites: input.websites,
       profile_picture_handle: input.profile_picture_handle,
-      updated_at: now,
+      updated_at: now
     };
 
     const mergedBusinessCompliance = {
@@ -7082,7 +7050,7 @@ router.post('/business-profile', async (req, res) => {
       grievance_officer_phone: input.grievance_officer_phone,
       grievance_officer_alt_phone: input.grievance_officer_alt_phone,
       logo_handle: input.logo_handle || input.profile_picture_handle || null,
-      updated_at: now,
+      updated_at: now
     };
 
     await docClient.send(
@@ -7094,8 +7062,8 @@ router.post('/business-profile', async (req, res) => {
         ExpressionAttributeValues: {
           ':businessProfile': mergedBusinessProfile,
           ':businessCompliance': mergedBusinessCompliance,
-          ':updatedAt': now,
-        },
+          ':updatedAt': now
+        }
       })
     );
 
@@ -7103,12 +7071,12 @@ router.post('/business-profile', async (req, res) => {
       success: true,
       data: response.data,
       profile: mergedBusinessProfile,
-      compliance: mergedBusinessCompliance,
+      compliance: mergedBusinessCompliance
     });
   } catch (error) {
     logger.error('Failed to update WhatsApp business profile', {
       error: error.message,
-      details: error.response?.data || null,
+      details: error.response?.data || null
     });
     const status = error.response?.status || 500;
     const graphMessage =
@@ -7116,7 +7084,9 @@ router.post('/business-profile', async (req, res) => {
       error.response?.data?.error?.message ||
       error.message ||
       'Failed to update business profile.';
-    return res.status(status >= 400 && status < 600 ? status : 500).json({ error: graphMessage });
+    return res
+      .status(status >= 400 && status < 600 ? status : 500)
+      .json({ error: graphMessage });
   }
 });
 
@@ -7151,8 +7121,8 @@ router.post('/catalog', async (req, res) => {
         Key: { store_id: storeId },
         UpdateExpression: 'SET catalog_id = :catalogId',
         ExpressionAttributeValues: {
-          ':catalogId': catalogId.toString().trim(),
-        },
+          ':catalogId': catalogId.toString().trim()
+        }
       })
     );
 
@@ -7174,7 +7144,7 @@ router.delete('/catalog', async (req, res) => {
       new UpdateCommand({
         TableName: STORE_CONFIG_TABLE,
         Key: { store_id: storeId },
-        UpdateExpression: 'REMOVE catalog_id',
+        UpdateExpression: 'REMOVE catalog_id'
       })
     );
 
@@ -7193,12 +7163,7 @@ router.get('/catalog/products', async (req, res) => {
     }
 
     const catalogId = (req.query?.catalogId || req.query?.catalog_id || '').toString().trim();
-    const collectionId = (
-      req.query?.collectionId ||
-      req.query?.collection_id ||
-      req.query?.product_set_id ||
-      ''
-    )
+    const collectionId = (req.query?.collectionId || req.query?.collection_id || req.query?.product_set_id || '')
       .toString()
       .trim();
     const config = await getStoreConfigById(storeId);
@@ -7217,7 +7182,7 @@ router.get('/catalog/products', async (req, res) => {
       accessToken,
       graphVersion: process.env.GRAPH_API_VERSION,
       limit,
-      productSetId: collectionId || null,
+      productSetId: collectionId || null
     });
 
     return res.json({ catalogId: effectiveCatalogId, products });
@@ -7232,11 +7197,11 @@ router.get('/catalog/products', async (req, res) => {
     logger.error('Failed to fetch catalog products', {
       status,
       error: message,
-      graphError,
+      graphError
     });
     return res.status(status >= 400 && status < 600 ? status : 500).json({
       error: message,
-      details: graphError || null,
+      details: graphError || null
     });
   }
 });
@@ -7264,7 +7229,7 @@ router.get('/catalog/collections', async (req, res) => {
       catalogId: effectiveCatalogId,
       accessToken,
       graphVersion: process.env.GRAPH_API_VERSION,
-      limit,
+      limit
     });
 
     return res.json({ catalogId: effectiveCatalogId, collections });
@@ -7279,11 +7244,11 @@ router.get('/catalog/collections', async (req, res) => {
     logger.error('Failed to fetch catalog collections', {
       status,
       error: message,
-      graphError,
+      graphError
     });
     return res.status(status >= 400 && status < 600 ? status : 500).json({
       error: message,
-      details: graphError || null,
+      details: graphError || null
     });
   }
 });
@@ -7298,7 +7263,7 @@ async function executeTextCampaignSend({
   templateName,
   templateLanguage,
   userContext,
-  resendSettings,
+  resendSettings
 }) {
   try {
     const whatsappApiUrl = userContext.whatsapp_api_url;
@@ -7311,7 +7276,7 @@ async function executeTextCampaignSend({
     const metadata = {
       phoneNumberId: userContext.phone_number_id || null,
       wabaId: userContext.waba_id || null,
-      displayPhoneNumber: userContext.waba_mobile_number || null,
+      displayPhoneNumber: userContext.waba_mobile_number || null
     };
     const franchiseId = await billingService.getFranchiseIdForStore(storeId);
 
@@ -7333,7 +7298,7 @@ async function executeTextCampaignSend({
         status: 'sent',
         message_id: messageId,
         last_status_update: sentAt,
-        campaign_id: campaignId,
+        campaign_id: campaignId
       });
 
       await persistWhatsAppMessage({
@@ -7349,7 +7314,7 @@ async function executeTextCampaignSend({
         metadata,
         campaignName: name,
         campaignId,
-        templateName,
+        templateName
       });
 
       const event = {
@@ -7361,7 +7326,7 @@ async function executeTextCampaignSend({
         campaignName: name,
         customerName: recipient.name,
         templateName,
-        campaignId,
+        campaignId
       };
       EventBuffer.addEvent(event);
       updateRecipientProgress(campaignId, {
@@ -7369,7 +7334,7 @@ async function executeTextCampaignSend({
         name: recipient.name,
         status: 'sent',
         messageId,
-        error: null,
+        error: null
       });
 
       billingService
@@ -7378,13 +7343,13 @@ async function executeTextCampaignSend({
           storeId,
           usageType: 'campaign_message',
           sourceId: messageId || campaignId,
-          quantity: 1,
+          quantity: 1
         })
         .catch((error) => {
           logger.error('Failed to record campaign message usage', {
             storeId,
             campaignId,
-            error: error.message,
+            error: error.message
           });
         });
     };
@@ -7410,12 +7375,12 @@ async function executeTextCampaignSend({
           last_status_update: sentAt,
           campaign_id: campaignId,
           error_reason: errorInfo?.message || null,
-          error_code: errorInfo?.code ?? null,
+          error_code: errorInfo?.code ?? null
         });
       } catch (dbError) {
         logger.error('Failed to insert campaign detail to DB', {
           phone: recipient.phone,
-          error: dbError.message,
+          error: dbError.message
         });
       }
 
@@ -7424,11 +7389,11 @@ async function executeTextCampaignSend({
         name: recipient.name,
         status: 'failed',
         messageId: null,
-        error: errorInfo?.message || null,
+        error: errorInfo?.message || null
       });
     };
 
-    const sendSingleRecipient = async (recipient) => {
+    const sendSingleRecipient = async recipient => {
       const sendResult = await sendMessage(
         recipient.phone,
         templateName,
@@ -7449,7 +7414,7 @@ async function executeTextCampaignSend({
         status: 'sent',
         sentDate: sentAt,
         error: null,
-        errorCode: null,
+        errorCode: null
       };
     };
 
@@ -7459,7 +7424,7 @@ async function executeTextCampaignSend({
       logger.error('Failed to send message to customer', {
         phone: recipient.phone,
         error: errorInfo.message,
-        errorCode: errorInfo.code,
+        errorCode: errorInfo.code
       });
       await recordFailure(recipient, sentAt, errorInfo);
       return {
@@ -7469,16 +7434,16 @@ async function executeTextCampaignSend({
         status: 'failed',
         error: errorInfo.message,
         errorCode: errorInfo.code,
-        sentDate: sentAt,
+        sentDate: sentAt
       };
     };
 
-    const sendRecipientWithRetry = async (recipient) => {
+    const sendRecipientWithRetry = async recipient => {
       let attempt = 0;
       updateRecipientProgress(campaignId, {
         phone: recipient.phone,
         name: recipient.name,
-        status: 'processing',
+        status: 'processing'
       });
       while (attempt <= CAMPAIGN_MAX_RETRIES) {
         try {
@@ -7492,9 +7457,12 @@ async function executeTextCampaignSend({
           logger.warn('Retrying WhatsApp campaign send', {
             phone: recipient.phone,
             attempt: attempt + 1,
-            error: resolveErrorInfo(error).message,
+            error: resolveErrorInfo(error).message
           });
-          const backoff = Math.min(CAMPAIGN_RETRY_BASE_DELAY_MS * Math.pow(2, attempt), 10000);
+          const backoff = Math.min(
+            CAMPAIGN_RETRY_BASE_DELAY_MS * Math.pow(2, attempt),
+            10000
+          );
           const jitter = Math.floor(Math.random() * 250);
           await delay(backoff + jitter);
           attempt += 1;
@@ -7506,12 +7474,12 @@ async function executeTextCampaignSend({
     const effectiveConcurrency = Math.max(1, Math.min(CAMPAIGN_CONCURRENCY, recipients.length));
     const results = await runWithConcurrency(
       recipients,
-      (recipient) => sendRecipientWithRetry(recipient),
+      recipient => sendRecipientWithRetry(recipient),
       effectiveConcurrency
     );
 
-    const successCount = results.filter((r) => r.success).length;
-    const failureCount = results.filter((r) => !r.success).length;
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
 
     logger.info('Campaign sent', {
       name,
@@ -7519,7 +7487,7 @@ async function executeTextCampaignSend({
       totalRecipients: recipients.length,
       successCount,
       failureCount,
-      campaignId,
+      campaignId
     });
 
     finalizeCampaignProgress(campaignId);
@@ -7541,7 +7509,7 @@ async function executeImageCampaignSend({
   userContext,
   headerImageS3Key,
   mediaPayload,
-  resendSettings,
+  resendSettings
 }) {
   try {
     const whatsappApiUrl = userContext.whatsapp_api_url;
@@ -7564,7 +7532,7 @@ async function executeImageCampaignSend({
       formData.append('messaging_product', 'whatsapp');
       formData.append('file', mediaPayload.buffer, {
         filename: mediaPayload.filename,
-        contentType: mediaPayload.mimetype,
+        contentType: mediaPayload.mimetype
       });
 
       logger.info('Uploading campaign media', {
@@ -7572,15 +7540,15 @@ async function executeImageCampaignSend({
         templateName,
         size: mediaPayload.size,
         mimetype: mediaPayload.mimetype,
-        campaignId,
+        campaignId
       });
 
       const uploadResponse = await axios.post(uploadUrl, formData, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          ...formData.getHeaders(),
+          ...formData.getHeaders()
         },
-        maxBodyLength: Infinity,
+        maxBodyLength: Infinity
       });
       mediaId = uploadResponse.data?.id || null;
       if (!mediaId) {
@@ -7592,13 +7560,13 @@ async function executeImageCampaignSend({
     if (mediaId) {
       try {
         await resendService.updateCampaignMetadata(campaignId, {
-          header_media_id: mediaId,
+          header_media_id: mediaId
         });
       } catch (error) {
         logger.warn('Failed to persist campaign media id', {
           campaignId,
           storeId,
-          error: error.message,
+          error: error.message
         });
       }
     }
@@ -7611,7 +7579,7 @@ async function executeImageCampaignSend({
     const metadata = {
       phoneNumberId,
       wabaId: userContext.waba_id || null,
-      displayPhoneNumber: userContext.waba_mobile_number || null,
+      displayPhoneNumber: userContext.waba_mobile_number || null
     };
     const franchiseId = await billingService.getFranchiseIdForStore(storeId);
 
@@ -7620,7 +7588,7 @@ async function executeImageCampaignSend({
         updateRecipientProgress(campaignId, {
           phone: recipient.phone,
           name: recipient.name,
-          status: 'processing',
+          status: 'processing'
         });
 
         const result = await sendMessage(
@@ -7653,7 +7621,7 @@ async function executeImageCampaignSend({
           status: 'sent',
           message_id: messageId,
           last_status_update: sentAt,
-          campaign_id: campaignId,
+          campaign_id: campaignId
         });
 
         await persistWhatsAppMessage({
@@ -7670,7 +7638,7 @@ async function executeImageCampaignSend({
           campaignName: name,
           campaignId,
           templateName,
-          mediaId: headerImageS3Key || mediaId || null,
+          mediaId: headerImageS3Key || mediaId || null
         });
 
         EventBuffer.addEvent({
@@ -7683,7 +7651,7 @@ async function executeImageCampaignSend({
           customerName: recipient.name,
           mediaId: headerImageS3Key || mediaId || null,
           templateName,
-          campaignId,
+          campaignId
         });
 
         updateRecipientProgress(campaignId, {
@@ -7691,7 +7659,7 @@ async function executeImageCampaignSend({
           name: recipient.name,
           status: 'sent',
           messageId,
-          error: null,
+          error: null
         });
 
         billingService
@@ -7700,13 +7668,13 @@ async function executeImageCampaignSend({
             storeId,
             usageType: 'campaign_message',
             sourceId: messageId || campaignId,
-            quantity: 1,
+            quantity: 1
           })
           .catch((error) => {
             logger.error('Failed to record image campaign usage', {
               storeId,
               campaignId,
-              error: error.message,
+              error: error.message
             });
           });
       } catch (error) {
@@ -7715,7 +7683,7 @@ async function executeImageCampaignSend({
           storeId,
           phone: recipient.phone,
           error: errorInfo.message,
-          errorCode: errorInfo.code,
+          errorCode: errorInfo.code
         });
 
         const sentAt = new Date().toISOString();
@@ -7740,13 +7708,13 @@ async function executeImageCampaignSend({
             last_status_update: sentAt,
             campaign_id: campaignId,
             error_reason: errorInfo.message,
-            error_code: errorInfo.code,
+            error_code: errorInfo.code
           });
         } catch (dbError) {
           logger.error('Failed to insert failed campaign detail to DB', {
             storeId,
             phone: recipient.phone,
-            error: dbError.message,
+            error: dbError.message
           });
         }
 
@@ -7755,7 +7723,7 @@ async function executeImageCampaignSend({
           name: recipient.name,
           status: 'failed',
           messageId: null,
-          error: errorInfo.message,
+          error: errorInfo.message
         });
       }
     }
@@ -7764,7 +7732,7 @@ async function executeImageCampaignSend({
     logger.info('Image template campaign complete', {
       name,
       storeId,
-      campaignId,
+      campaignId
     });
   } catch (error) {
     failCampaignProgress(campaignId, error.message);
@@ -7793,7 +7761,7 @@ async function processResendQueue() {
 
 if (RESEND_SCHEDULER_ENABLED) {
   const interval = setInterval(() => {
-    processResendQueue().catch((error) => {
+    processResendQueue().catch(error => {
       logger.error('Resend scheduler loop failed', { error: error.message });
     });
   }, RESEND_SCHEDULER_INTERVAL_MS);
