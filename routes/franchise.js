@@ -644,11 +644,9 @@ router.post('/login/send-otp', async (req, res) => {
     const ownerPhone = ownerStore?.franchise_owner_phone || stores[0].franchise_owner_phone || '';
     const digits = ownerPhone ? ownerPhone.toString().replace(/\D/g, '') : '';
     if (digits.length !== 10) {
-      return res
-        .status(400)
-        .json({
-          error: 'Franchise owner phone number is missing or invalid. Please contact support.',
-        });
+      return res.status(400).json({
+        error: 'Franchise owner phone number is missing or invalid. Please contact support.',
+      });
     }
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpKey = createFranchiseOtpKey(stores[0].franchise_id || trimmedId);
@@ -731,11 +729,9 @@ router.post('/login/password/send-otp', async (req, res) => {
     const ownerPhone = ownerStore?.franchise_owner_phone || stores[0].franchise_owner_phone || '';
     const digits = ownerPhone ? ownerPhone.toString().replace(/\D/g, '') : '';
     if (digits.length !== 10) {
-      return res
-        .status(400)
-        .json({
-          error: 'Franchise owner phone number is missing or invalid. Please contact support.',
-        });
+      return res.status(400).json({
+        error: 'Franchise owner phone number is missing or invalid. Please contact support.',
+      });
     }
 
     const otp = Math.floor(100000 + Math.random() * 900000).toString();

@@ -1052,12 +1052,10 @@ router.patch('/profile/smart-ebill', async (req, res) => {
   }
 
   if (updateFragments.length === 0) {
-    return res
-      .status(400)
-      .json({
-        error:
-          'Provide headerText, footerText, addressText, images, headerImages, or bottomBanner to update.',
-      });
+    return res.status(400).json({
+      error:
+        'Provide headerText, footerText, addressText, images, headerImages, or bottomBanner to update.',
+    });
   }
 
   const updateCommand = new UpdateCommand({
@@ -1646,11 +1644,9 @@ router.post('/send-otp', async (req, res) => {
 
       const storedPhone = resolveStorePhone(storeResult.Item);
       if (!storedPhone || storedPhone.length !== 10) {
-        return res
-          .status(400)
-          .json({
-            error: 'Registered phone number is missing or invalid. Please contact support.',
-          });
+        return res.status(400).json({
+          error: 'Registered phone number is missing or invalid. Please contact support.',
+        });
       }
 
       if (storedPhone !== normalizedDigits) {
@@ -1662,11 +1658,9 @@ router.post('/send-otp', async (req, res) => {
     } else if (!isFranchiseReset) {
       const alreadyRegistered = await isPhoneNumberRegistered(normalizedDigits);
       if (alreadyRegistered) {
-        return res
-          .status(409)
-          .json({
-            error: 'This mobile number is already registered. Please enter a different number.',
-          });
+        return res.status(409).json({
+          error: 'This mobile number is already registered. Please enter a different number.',
+        });
       }
     }
 
@@ -1781,11 +1775,9 @@ router.post('/franchise/reset-password', async (req, res) => {
   const { franchise_id: franchiseId, password, otp } = req.body || {};
 
   if (!franchiseId || !password || !otp) {
-    return res
-      .status(400)
-      .json({
-        error: 'franchise_id, password, and otp are required to reset the franchise password.',
-      });
+    return res.status(400).json({
+      error: 'franchise_id, password, and otp are required to reset the franchise password.',
+    });
   }
 
   const normalizedFranchiseId = franchiseId.trim();
