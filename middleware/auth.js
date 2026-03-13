@@ -4,7 +4,7 @@ const { DynamoDBDocumentClient, GetCommand } = require('@aws-sdk/lib-dynamodb');
 const { logger } = require('../config/logger');
 const {
   sanitizeCustomerTypeConfig,
-  DEFAULT_CUSTOMER_TYPE_CONFIG
+  DEFAULT_CUSTOMER_TYPE_CONFIG,
 } = require('../utils/customerTypes');
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -13,7 +13,7 @@ const STORE_WHATSAPP_CONFIG_TABLE = process.env.STORE_WHATSAPP_CONFIG_TABLE;
 const ADMIN_PANEL_DEV_MODE = process.env.ADMIN_PANEL_DEV_MODE === 'true';
 
 // Initialize DynamoDB client
-const client = new DynamoDBClient({ region: process.env.AWS_REGION});
+const client = new DynamoDBClient({ region: process.env.AWS_REGION });
 const docClient = DynamoDBDocumentClient.from(client);
 
 // JWT authentication middleware
@@ -24,7 +24,9 @@ const authenticateToken = async (req, res, next) => {
 
   // Skip auth entirely when admin panel dev mode is enabled for admin routes
   if (ADMIN_PANEL_DEV_MODE && req.path.startsWith('/api/admin')) {
-    logger.warn('Admin panel dev mode enabled; skipping auth for admin endpoint', { path: req.path });
+    logger.warn('Admin panel dev mode enabled; skipping auth for admin endpoint', {
+      path: req.path,
+    });
     return next();
   }
 
@@ -87,11 +89,11 @@ const authenticateToken = async (req, res, next) => {
       // Fetch WhatsApp configuration for the store
       const command = new GetCommand({
         TableName: STORE_WHATSAPP_CONFIG_TABLE,
-        Key: { store_id: user.store_id }
+        Key: { store_id: user.store_id },
       });
 
       const result = await docClient.send(command);
-      
+
       if (result.Item) {
         const config = result.Item;
 
@@ -129,20 +131,20 @@ const authenticateToken = async (req, res, next) => {
           webhook_config: config.webhook_config || null,
           customer_type_config: sanitizeCustomerTypeConfig(
             config.customer_type_config || DEFAULT_CUSTOMER_TYPE_CONFIG
-          )
+          ),
         };
       } else {
         req.user = {
           ...user,
-          customer_type_config: sanitizeCustomerTypeConfig(DEFAULT_CUSTOMER_TYPE_CONFIG)
+          customer_type_config: sanitizeCustomerTypeConfig(DEFAULT_CUSTOMER_TYPE_CONFIG),
         };
       }
 
       next();
     } catch (error) {
-      logger.error('Error fetching WhatsApp config', { 
-        store_id: user.store_id, 
-        error: error.message 
+      logger.error('Error fetching WhatsApp config', {
+        store_id: user.store_id,
+        error: error.message,
       });
       req.user = user;
       next();

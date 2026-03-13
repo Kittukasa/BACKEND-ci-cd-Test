@@ -16,19 +16,19 @@ const buildFranchiseCandidateIds = (ids = []) =>
   Array.from(
     new Set(
       ids
-        .map(value => (typeof value === 'string' ? value.trim() : ''))
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
         .filter(Boolean)
-        .flatMap(value => [value, value.toLowerCase()])
+        .flatMap((value) => [value, value.toLowerCase()])
     )
   );
 
-const normalizePhoneDigits = value => (typeof value === 'string' ? value.replace(/\D/g, '') : '');
+const normalizePhoneDigits = (value) => (typeof value === 'string' ? value.replace(/\D/g, '') : '');
 const ANONYMOUS_PHONE = '0000000000';
 const ANONYMOUS_KEY_PREFIX = 'anonymous:';
-const isAnonymousPhone = digits => digits === ANONYMOUS_PHONE;
+const isAnonymousPhone = (digits) => digits === ANONYMOUS_PHONE;
 const DAILY_END_REPORT_CUSTOMER_NAME = '1234';
 
-const buildAnonymousCustomerKey = item => {
+const buildAnonymousCustomerKey = (item) => {
   const identifier =
     item.invoice_id ??
     item.invoiceId ??
@@ -42,7 +42,7 @@ const buildAnonymousCustomerKey = item => {
   return `${ANONYMOUS_KEY_PREFIX}${identifier}`;
 };
 
-const getInvoiceCustomerKey = item => {
+const getInvoiceCustomerKey = (item) => {
   const phone = typeof item.customer_phone === 'string' ? item.customer_phone.trim() : '';
   if (!phone) {
     return null;
@@ -57,7 +57,7 @@ const getInvoiceCustomerKey = item => {
   return digits;
 };
 
-const isDailyEndReportInvoice = invoice => {
+const isDailyEndReportInvoice = (invoice) => {
   if (!invoice) {
     return false;
   }
@@ -68,15 +68,11 @@ const isDailyEndReportInvoice = invoice => {
   return rawName.toString().trim() === DAILY_END_REPORT_CUSTOMER_NAME;
 };
 
-const buildInvoiceFingerprint = invoice => {
+const buildInvoiceFingerprint = (invoice) => {
   if (!invoice) {
     return null;
   }
-  const invoiceId =
-    invoice.invoice_id ??
-    invoice.invoiceId ??
-    invoice.invoiceID ??
-    null;
+  const invoiceId = invoice.invoice_id ?? invoice.invoiceId ?? invoice.invoiceID ?? null;
   if (invoiceId) {
     return `id:${invoiceId}`;
   }
@@ -95,7 +91,7 @@ const buildInvoiceFingerprint = invoice => {
   return `calc:${phone}|${timestamp}|${amount}`;
 };
 
-const getDailyEndInvoiceSet = async storeId => {
+const getDailyEndInvoiceSet = async (storeId) => {
   if (!STORE_CONFIG_TABLE || !storeId) {
     return new Set();
   }
@@ -104,7 +100,7 @@ const getDailyEndInvoiceSet = async storeId => {
       new GetCommand({
         TableName: STORE_CONFIG_TABLE,
         Key: { store_id: storeId.toString() },
-        ProjectionExpression: 'daily_end_invoices'
+        ProjectionExpression: 'daily_end_invoices',
       })
     );
     const values = Array.isArray(result?.Item?.daily_end_invoices)
@@ -112,8 +108,8 @@ const getDailyEndInvoiceSet = async storeId => {
       : [];
     return new Set(
       values
-        .filter(value => typeof value === 'string' && value.trim().length > 0)
-        .map(value => value.trim())
+        .filter((value) => typeof value === 'string' && value.trim().length > 0)
+        .map((value) => value.trim())
     );
   } catch (error) {
     logger.error('Failed to load daily end report invoices', { storeId, error: error.message });
@@ -126,7 +122,7 @@ const aggregateInvoices = (stats, dailyEndSet = null) => {
   let totalInvoices = 0;
   let anonymousCustomers = 0;
   const customerSet = new Set();
-  stats.forEach(item => {
+  stats.forEach((item) => {
     const fingerprint = buildInvoiceFingerprint(item);
     if (
       isDailyEndReportInvoice(item) ||
@@ -151,7 +147,7 @@ const aggregateInvoices = (stats, dailyEndSet = null) => {
   return { totalRevenue, totalInvoices, customers: customerSet, anonymousCustomers };
 };
 
-const getStoreInvoiceStats = async storeId => {
+const getStoreInvoiceStats = async (storeId) => {
   if (!INVOICES_TABLE || !storeId) {
     return { totalRevenue: 0, totalInvoices: 0, totalCustomers: 0 };
   }
@@ -176,7 +172,7 @@ const getStoreInvoiceStats = async storeId => {
           const aggregates = aggregateInvoices(result.Items, dailyEndSet);
           totalRevenue += aggregates.totalRevenue;
           totalInvoices += aggregates.totalInvoices;
-          aggregates.customers.forEach(value => customerSet.add(value));
+          aggregates.customers.forEach((value) => customerSet.add(value));
           anonymousCount += aggregates.anonymousCustomers;
         }
         lastEvaluatedKey = result.LastEvaluatedKey;
@@ -184,7 +180,7 @@ const getStoreInvoiceStats = async storeId => {
         logger.warn('Invoice aggregation failed', {
           storeId: normalizedStoreId,
           context: logLabel,
-          error: error.message
+          error: error.message,
         });
         break;
       }
@@ -193,25 +189,25 @@ const getStoreInvoiceStats = async storeId => {
       totalRevenue,
       totalInvoices,
       totalCustomers: customerSet.size,
-      totalAnonymousCustomers: anonymousCount
+      totalAnonymousCustomers: anonymousCount,
     };
   };
 
   const projectionFields =
     'store_id, total_amount, totalAmount, customer_phone, customer_name, invoice_id, invoiceId, invoice_no, invoiceNo, processed_timestamp_ist, invoice_date, invoice_timestamp, created_at';
 
-  const baseQueryBuilder = lastEvaluatedKey => {
+  const baseQueryBuilder = (lastEvaluatedKey) => {
     const params = {
       TableName: INVOICES_TABLE,
       KeyConditionExpression: '#store_id = :storeId',
       ExpressionAttributeNames: {
-        '#store_id': 'store_id'
+        '#store_id': 'store_id',
       },
       ExpressionAttributeValues: {
-        ':storeId': normalizedStoreId
+        ':storeId': normalizedStoreId,
       },
       ProjectionExpression: projectionFields,
-      Limit: 100
+      Limit: 100,
     };
     if (lastEvaluatedKey) {
       params.ExclusiveStartKey = lastEvaluatedKey;
@@ -222,7 +218,7 @@ const getStoreInvoiceStats = async storeId => {
   let stats = await aggregateFromPagedCommand(baseQueryBuilder, QueryCommand, 'primary-query');
 
   if (stats.totalInvoices === 0 && INVOICES_STORE_ID_INDEX) {
-    const indexQueryBuilder = lastEvaluatedKey => {
+    const indexQueryBuilder = (lastEvaluatedKey) => {
       const params = baseQueryBuilder(lastEvaluatedKey);
       params.IndexName = INVOICES_STORE_ID_INDEX;
       return params;
@@ -231,18 +227,18 @@ const getStoreInvoiceStats = async storeId => {
   }
 
   if (stats.totalInvoices === 0) {
-    const scanBuilder = lastEvaluatedKey => {
+    const scanBuilder = (lastEvaluatedKey) => {
       const params = {
         TableName: INVOICES_TABLE,
         FilterExpression: '#store_id = :storeId',
         ExpressionAttributeNames: {
-          '#store_id': 'store_id'
+          '#store_id': 'store_id',
         },
         ExpressionAttributeValues: {
-          ':storeId': normalizedStoreId
+          ':storeId': normalizedStoreId,
         },
         ProjectionExpression: projectionFields,
-        Limit: 100
+        Limit: 100,
       };
       if (lastEvaluatedKey) {
         params.ExclusiveStartKey = lastEvaluatedKey;
@@ -256,11 +252,11 @@ const getStoreInvoiceStats = async storeId => {
     totalRevenue: stats.totalRevenue,
     totalInvoices: stats.totalInvoices,
     totalCustomers: stats.totalCustomers,
-    totalAnonymousCustomers: stats.totalAnonymousCustomers || 0
+    totalAnonymousCustomers: stats.totalAnonymousCustomers || 0,
   };
 };
 
-const resolveStorePhone = store => {
+const resolveStorePhone = (store) => {
   if (!store) {
     return '';
   }
@@ -269,7 +265,7 @@ const resolveStorePhone = store => {
     store.contact_phone,
     store.vendor_phone,
     store.phone,
-    store.mobile_number
+    store.mobile_number,
   ];
   for (const value of fields) {
     const digits = normalizePhoneDigits(value);
@@ -291,25 +287,23 @@ async function getFranchiseOwnerContact(franchiseId) {
     return null;
   }
 
-  const ownerStore = stores.find(store => normalizePhoneDigits(store.franchise_owner_phone));
+  const ownerStore = stores.find((store) => normalizePhoneDigits(store.franchise_owner_phone));
   if (ownerStore) {
     return {
       phone: normalizePhoneDigits(ownerStore.franchise_owner_phone),
       storeId: ownerStore.store_id,
       franchiseId: ownerStore.franchise_id || franchiseId,
-      verifiedAt: ownerStore.franchise_owner_verified_at || ownerStore.created_at || null
+      verifiedAt: ownerStore.franchise_owner_verified_at || ownerStore.created_at || null,
     };
   }
 
-  const sortedByCreated = stores
-    .slice()
-    .sort((a, b) => {
-      const aTime = new Date(a.created_at || a.updated_at || 0).getTime();
-      const bTime = new Date(b.created_at || b.updated_at || 0).getTime();
-      return aTime - bTime;
-    });
+  const sortedByCreated = stores.slice().sort((a, b) => {
+    const aTime = new Date(a.created_at || a.updated_at || 0).getTime();
+    const bTime = new Date(b.created_at || b.updated_at || 0).getTime();
+    return aTime - bTime;
+  });
 
-  const firstWithPhone = sortedByCreated.find(store => resolveStorePhone(store));
+  const firstWithPhone = sortedByCreated.find((store) => resolveStorePhone(store));
   if (!firstWithPhone) {
     return null;
   }
@@ -325,18 +319,19 @@ async function getFranchiseOwnerContact(franchiseId) {
       new UpdateCommand({
         TableName: STORE_CONFIG_TABLE,
         Key: { store_id: firstWithPhone.store_id },
-        UpdateExpression: 'SET franchise_owner_phone = :phone, franchise_owner_verified_at = :verified',
+        UpdateExpression:
+          'SET franchise_owner_phone = :phone, franchise_owner_verified_at = :verified',
         ExpressionAttributeValues: {
           ':phone': normalizedPhone,
-          ':verified': verifiedAt
-        }
+          ':verified': verifiedAt,
+        },
       })
     );
   } catch (error) {
     logger.warn('Failed to stamp franchise owner phone', {
       franchiseId,
       storeId: firstWithPhone.store_id,
-      error: error.message
+      error: error.message,
     });
   }
 
@@ -344,11 +339,11 @@ async function getFranchiseOwnerContact(franchiseId) {
     phone: normalizedPhone,
     storeId: firstWithPhone.store_id,
     franchiseId: firstWithPhone.franchise_id || franchiseId,
-    verifiedAt
+    verifiedAt,
   };
 }
 
-const getStoreCampaignStats = async storeId => {
+const getStoreCampaignStats = async (storeId) => {
   if (!CAMPAIGN_TABLE_NAME || !storeId) {
     return { totalCampaigns: 0, totalMessages: 0 };
   }
@@ -357,7 +352,7 @@ const getStoreCampaignStats = async storeId => {
     return { totalCampaigns: 0, totalMessages: 0 };
   }
 
-  const aggregateForKey = async storeKeyValue => {
+  const aggregateForKey = async (storeKeyValue) => {
     const campaignIds = new Set();
     let totalMessages = 0;
     let lastEvaluatedKey;
@@ -368,13 +363,13 @@ const getStoreCampaignStats = async storeId => {
         TableName: CAMPAIGN_TABLE_NAME,
         KeyConditionExpression: '#store_id = :storeId',
         ExpressionAttributeNames: {
-          '#store_id': 'store_id'
+          '#store_id': 'store_id',
         },
         ExpressionAttributeValues: {
-          ':storeId': storeKeyValue
+          ':storeId': storeKeyValue,
         },
         ProjectionExpression: 'campaign_id, campaign_name, sent_at',
-        Limit: 200
+        Limit: 200,
       };
       if (lastEvaluatedKey) {
         params.ExclusiveStartKey = lastEvaluatedKey;
@@ -384,7 +379,7 @@ const getStoreCampaignStats = async storeId => {
         if (result.Items && result.Items.length > 0) {
           found = true;
           totalMessages += result.Items.length;
-          result.Items.forEach(item => {
+          result.Items.forEach((item) => {
             if (item.campaign_id) {
               campaignIds.add(item.campaign_id);
             }
@@ -394,7 +389,7 @@ const getStoreCampaignStats = async storeId => {
       } catch (error) {
         logger.warn('Campaign stats query failed', {
           storeId: storeKeyValue,
-          error: error.message
+          error: error.message,
         });
         break;
       }
@@ -403,7 +398,7 @@ const getStoreCampaignStats = async storeId => {
     return {
       found,
       totalCampaigns: campaignIds.size,
-      totalMessages
+      totalMessages,
     };
   };
 
@@ -411,11 +406,11 @@ const getStoreCampaignStats = async storeId => {
 
   return {
     totalCampaigns: stats.totalCampaigns,
-    totalMessages: stats.totalMessages
+    totalMessages: stats.totalMessages,
   };
 };
 
-const getStoreCampaignSentCount = async storeId => {
+const getStoreCampaignSentCount = async (storeId) => {
   if (!CAMPAIGN_TABLE_NAME || !storeId) {
     return 0;
   }
@@ -424,7 +419,7 @@ const getStoreCampaignSentCount = async storeId => {
     return 0;
   }
 
-  const aggregateForKey = async storeKeyValue => {
+  const aggregateForKey = async (storeKeyValue) => {
     let totalMessages = 0;
     let lastEvaluatedKey;
     let found = false;
@@ -434,13 +429,13 @@ const getStoreCampaignSentCount = async storeId => {
         TableName: CAMPAIGN_TABLE_NAME,
         KeyConditionExpression: '#store_id = :storeId',
         ExpressionAttributeNames: {
-          '#store_id': 'store_id'
+          '#store_id': 'store_id',
         },
         ExpressionAttributeValues: {
-          ':storeId': storeKeyValue
+          ':storeId': storeKeyValue,
         },
         ProjectionExpression: 'sent_at',
-        Limit: 200
+        Limit: 200,
       };
       if (lastEvaluatedKey) {
         params.ExclusiveStartKey = lastEvaluatedKey;
@@ -455,7 +450,7 @@ const getStoreCampaignSentCount = async storeId => {
       } catch (error) {
         logger.warn('Campaign sent count query failed', {
           storeId: storeKeyValue,
-          error: error.message
+          error: error.message,
         });
         return { found, totalMessages };
       }
@@ -482,11 +477,11 @@ const collectFranchiseStores = async (ids = []) => {
         TableName: STORE_CONFIG_TABLE,
         FilterExpression: 'franchise_id = :franchiseId',
         ExpressionAttributeValues: {
-          ':franchiseId': candidate
+          ':franchiseId': candidate,
         },
         ProjectionExpression:
           'store_id, franchise_id, brand_name, business_type, store_name, contact_phone, contact_email, onboarding_status, created_at, updated_at, franchise_password, franchise_access, franchise_owner_phone, franchise_owner_verified_at, trial_started, trial_period',
-        Limit: 50
+        Limit: 50,
       };
       if (lastEvaluatedKey) {
         params.ExclusiveStartKey = lastEvaluatedKey;
@@ -500,10 +495,10 @@ const collectFranchiseStores = async (ids = []) => {
 
     if (stores.length > 0) {
       const enriched = await Promise.all(
-        stores.map(async store => {
+        stores.map(async (store) => {
           const [stats, campaignStats] = await Promise.all([
             getStoreInvoiceStats(store.store_id),
-            getStoreCampaignStats(store.store_id)
+            getStoreCampaignStats(store.store_id),
           ]);
           return {
             ...store,
@@ -514,7 +509,7 @@ const collectFranchiseStores = async (ids = []) => {
             total_anonymous_customers: stats.totalAnonymousCustomers,
             total_campaigns: campaignStats.totalCampaigns,
             total_campaign_messages: campaignStats.totalMessages,
-            franchise_access: store.franchise_access
+            franchise_access: store.franchise_access,
           };
         })
       );
@@ -537,17 +532,17 @@ const collectFranchiseStoreIds = async (ids = []) => {
         TableName: STORE_CONFIG_TABLE,
         FilterExpression: 'franchise_id = :franchiseId',
         ExpressionAttributeValues: {
-          ':franchiseId': candidate
+          ':franchiseId': candidate,
         },
         ProjectionExpression: 'store_id',
-        Limit: 50
+        Limit: 50,
       };
       if (lastEvaluatedKey) {
         params.ExclusiveStartKey = lastEvaluatedKey;
       }
       const result = await docClient.send(new ScanCommand(params));
       if (result.Items && result.Items.length > 0) {
-        result.Items.forEach(item => {
+        result.Items.forEach((item) => {
           if (item.store_id) {
             storeIds.push(item.store_id);
           }
@@ -572,7 +567,7 @@ const findFranchiseByIds = async (ids = []) => {
   return null;
 };
 
-const getStoreDailyStats = async storeId => {
+const getStoreDailyStats = async (storeId) => {
   if (!storeId || !INVOICES_TABLE) {
     return [];
   }
@@ -584,8 +579,8 @@ const getStoreDailyStats = async storeId => {
   const dailyEndSet = await getDailyEndInvoiceSet(normalizedStoreId);
   const dateMap = new Map();
 
-  const aggregateByDate = items => {
-    items.forEach(item => {
+  const aggregateByDate = (items) => {
+    items.forEach((item) => {
       const fingerprint = buildInvoiceFingerprint(item);
       if (
         isDailyEndReportInvoice(item) ||
@@ -595,7 +590,10 @@ const getStoreDailyStats = async storeId => {
       }
       const amount = Number(item.total_amount ?? item.totalAmount ?? 0);
       const rawDate =
-        item.processed_timestamp_ist || item.invoice_date || item.invoice_timestamp || item.created_at;
+        item.processed_timestamp_ist ||
+        item.invoice_date ||
+        item.invoice_timestamp ||
+        item.created_at;
       const parsed = parseInvoiceTimestamp(rawDate);
       const dayKey = parsed ? parsed.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
       if (!dateMap.has(dayKey)) {
@@ -605,7 +603,7 @@ const getStoreDailyStats = async storeId => {
           revenue: 0,
           customers: new Set(),
           ebill: 0,
-          anonymous: 0
+          anonymous: 0,
         });
       }
       const entry = dateMap.get(dayKey);
@@ -614,8 +612,7 @@ const getStoreDailyStats = async storeId => {
         entry.revenue += amount;
       }
       const customerKey = getInvoiceCustomerKey(item);
-      const isAnonymousCustomer =
-        !customerKey || customerKey.startsWith(ANONYMOUS_KEY_PREFIX);
+      const isAnonymousCustomer = !customerKey || customerKey.startsWith(ANONYMOUS_KEY_PREFIX);
       if (!isAnonymousCustomer && customerKey) {
         entry.customers.add(customerKey);
         entry.ebill += 1;
@@ -628,7 +625,7 @@ const getStoreDailyStats = async storeId => {
   const projection =
     'store_id, total_amount, totalAmount, customer_phone, customer_name, invoice_date, processed_timestamp_ist, invoice_timestamp, created_at';
 
-  const runQuery = async indexName => {
+  const runQuery = async (indexName) => {
     let lastEvaluatedKey;
     let found = false;
     do {
@@ -636,13 +633,13 @@ const getStoreDailyStats = async storeId => {
         TableName: INVOICES_TABLE,
         KeyConditionExpression: '#store_id = :storeId',
         ExpressionAttributeNames: {
-          '#store_id': 'store_id'
+          '#store_id': 'store_id',
         },
         ExpressionAttributeValues: {
-          ':storeId': normalizedStoreId
+          ':storeId': normalizedStoreId,
         },
         ProjectionExpression: projection,
-        Limit: 200
+        Limit: 200,
       };
       if (indexName) {
         params.IndexName = indexName;
@@ -661,7 +658,7 @@ const getStoreDailyStats = async storeId => {
         logger.warn('Daily stats query failed', {
           storeId: normalizedStoreId,
           indexName,
-          error: error.message
+          error: error.message,
         });
         return false;
       }
@@ -681,13 +678,13 @@ const getStoreDailyStats = async storeId => {
         TableName: INVOICES_TABLE,
         FilterExpression: '#store_id = :storeId',
         ExpressionAttributeNames: {
-          '#store_id': 'store_id'
+          '#store_id': 'store_id',
         },
         ExpressionAttributeValues: {
-          ':storeId': normalizedStoreId
+          ':storeId': normalizedStoreId,
         },
         ProjectionExpression: projection,
-        Limit: 200
+        Limit: 200,
       };
       if (scanKey) {
         scanParams.ExclusiveStartKey = scanKey;
@@ -701,12 +698,14 @@ const getStoreDailyStats = async storeId => {
     } while (scanKey);
 
     if (!hasData) {
-      logger.warn('No invoice activity found for store daily stats', { storeId: normalizedStoreId });
+      logger.warn('No invoice activity found for store daily stats', {
+        storeId: normalizedStoreId,
+      });
     }
   }
 
   return Array.from(dateMap.values())
-    .map(entry => ({
+    .map((entry) => ({
       date: entry.date,
       invoices: entry.invoices,
       revenue: entry.revenue,
@@ -714,7 +713,7 @@ const getStoreDailyStats = async storeId => {
       customer_keys: Array.from(entry.customers),
       ebill_invoices: entry.ebill,
       ebill_customers: entry.customers.size,
-      anonymous_customers: entry.anonymous
+      anonymous_customers: entry.anonymous,
     }))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
 };
@@ -727,7 +726,7 @@ module.exports = {
   getStoreDailyStats,
   findFranchiseByIds,
   getFranchiseOwnerContact,
-  getStoreCampaignSentCount
+  getStoreCampaignSentCount,
 };
 const INVOICE_TIMESTAMP_FORMATS = [
   'DD-MM-YYYY HH:mm:ss',
@@ -743,10 +742,10 @@ const INVOICE_TIMESTAMP_FORMATS = [
   'YYYY-MM-DDTHH:mm:ss.SSSZ',
   'YYYY-MM-DDTHH:mm:ssZ',
   'ddd MMM DD YYYY HH:mm:ss [GMT]ZZ',
-  'ddd MMM DD YYYY HH:mm:ss [GMT]ZZ (z)'
+  'ddd MMM DD YYYY HH:mm:ss [GMT]ZZ (z)',
 ];
 
-const parseInvoiceTimestamp = value => {
+const parseInvoiceTimestamp = (value) => {
   if (value === undefined || value === null) {
     return null;
   }

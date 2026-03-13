@@ -11,7 +11,7 @@ const { logger } = require('../config/logger');
 const { findFranchiseByIds, getFranchiseOwnerContact } = require('../services/franchiseService');
 const {
   sanitizeCustomerTypeConfig,
-  DEFAULT_CUSTOMER_TYPE_CONFIG
+  DEFAULT_CUSTOMER_TYPE_CONFIG,
 } = require('../utils/customerTypes');
 
 const router = express.Router();
@@ -41,27 +41,25 @@ const SMART_EBILL_MAX_FILE_SIZE = Number(process.env.SMART_EBILL_MAX_FILE_SIZE |
 const s3Client =
   SMART_EBILL_S3_BUCKET && AWS_REGION
     ? new S3Client({
-        region: AWS_REGION
+        region: AWS_REGION,
       })
     : null;
 const smartEbillUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: SMART_EBILL_MAX_FILE_SIZE,
-    files: SMART_EBILL_MAX_IMAGES
-  }
+    files: SMART_EBILL_MAX_IMAGES,
+  },
 });
 const smartEbillUploadMiddleware = (req, res, next) => {
-  smartEbillUpload.array('images', SMART_EBILL_MAX_IMAGES)(req, res, err => {
+  smartEbillUpload.array('images', SMART_EBILL_MAX_IMAGES)(req, res, (err) => {
     if (!err) {
       return next();
     }
     if (err instanceof multer.MulterError) {
       if (err.code === 'LIMIT_FILE_SIZE') {
         const maxMb = Math.max(1, Math.round(SMART_EBILL_MAX_FILE_SIZE / (1024 * 1024)));
-        return res
-          .status(413)
-          .json({ error: `Image too large. Maximum size is ${maxMb}MB.` });
+        return res.status(413).json({ error: `Image too large. Maximum size is ${maxMb}MB.` });
       }
       if (err.code === 'LIMIT_FILE_COUNT') {
         return res
@@ -82,7 +80,7 @@ const resolveFranchiseTrial = async (franchiseId) => {
     const result = await docClient.send(
       new GetCommand({
         TableName: FRANCHISES_TABLE,
-        Key: { franchise_id: franchiseId }
+        Key: { franchise_id: franchiseId },
       })
     );
     const item = result.Item || null;
@@ -101,7 +99,7 @@ const resolveFranchiseTrial = async (franchiseId) => {
     }
     return {
       trial_started: item.trial_start,
-      trial_period: periodDays
+      trial_period: periodDays,
     };
   } catch (error) {
     logger.warn('Failed to resolve franchise trial', { franchiseId, error: error.message });
@@ -121,7 +119,7 @@ const saveOtp = (key, otp) => {
   otpStore.set(key, {
     otp,
     createdAt: now,
-    expiresAt: now + OTP_TTL_MS
+    expiresAt: now + OTP_TTL_MS,
   });
 };
 
@@ -130,7 +128,8 @@ const consumeOtp = (key, otp) => {
   if (!record) {
     return false;
   }
-  const issuedAt = record.createdAt || (record.expiresAt ? record.expiresAt - OTP_TTL_MS : Date.now());
+  const issuedAt =
+    record.createdAt || (record.expiresAt ? record.expiresAt - OTP_TTL_MS : Date.now());
   const isExpired = record.expiresAt < Date.now() || Date.now() - issuedAt > OTP_TTL_MS;
   if (isExpired) {
     otpStore.delete(key);
@@ -163,20 +162,21 @@ const resolveStorePhone = (store = {}) => {
 };
 
 const buildSmartEbillKey = (storeId, originalName = 'image.jpg') => {
-  const safeName = typeof originalName === 'string' ? originalName.replace(/[^a-zA-Z0-9.\-]/g, '') : 'upload.jpg';
+  const safeName =
+    typeof originalName === 'string' ? originalName.replace(/[^a-zA-Z0-9.\-]/g, '') : 'upload.jpg';
   const extension = path.extname(safeName) || '.jpg';
   const randomSegment = crypto.randomBytes(8).toString('hex');
   return `${SMART_EBILL_S3_PREFIX}${storeId}/${Date.now()}-${randomSegment}${extension}`;
 };
 
-const buildSmartEbillUrl = key => {
+const buildSmartEbillUrl = (key) => {
   if (!key) {
     return '';
   }
   return `https://${SMART_EBILL_S3_BUCKET}.s3.${AWS_REGION}.amazonaws.com/${key}`;
 };
 
-const sanitizeSmartText = value => {
+const sanitizeSmartText = (value) => {
   if (typeof value !== 'string') {
     return '';
   }
@@ -205,7 +205,7 @@ const fetchStoreRevenuePin = async (storeId) => {
   const command = new GetCommand({
     TableName: STORE_CONFIG_TABLE,
     Key: { store_id: storeId },
-    ProjectionExpression: 'revenue_pin, revenue_pin_updated_at'
+    ProjectionExpression: 'revenue_pin, revenue_pin_updated_at',
   });
   const result = await docClient.send(command);
   if (!result.Item?.revenue_pin) {
@@ -213,7 +213,7 @@ const fetchStoreRevenuePin = async (storeId) => {
   }
   return {
     pin: String(result.Item.revenue_pin).trim(),
-    updatedAt: result.Item.revenue_pin_updated_at || null
+    updatedAt: result.Item.revenue_pin_updated_at || null,
   };
 };
 
@@ -221,13 +221,13 @@ const buildFranchiseCandidateIds = (ids = []) =>
   Array.from(
     new Set(
       ids
-        .map(value => (typeof value === 'string' ? value.trim() : ''))
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
         .filter(Boolean)
-        .flatMap(value => [value, value.toLowerCase()])
+        .flatMap((value) => [value, value.toLowerCase()])
     )
   );
 
-const listStoresForFranchise = async franchiseId => {
+const listStoresForFranchise = async (franchiseId) => {
   if (!STORE_CONFIG_TABLE || !franchiseId) {
     return [];
   }
@@ -240,10 +240,10 @@ const listStoresForFranchise = async franchiseId => {
         TableName: STORE_CONFIG_TABLE,
         FilterExpression: 'franchise_id = :franchiseId',
         ExpressionAttributeValues: {
-          ':franchiseId': candidate
+          ':franchiseId': candidate,
         },
         ProjectionExpression: 'store_id, franchise_id, franchise_password, updated_at',
-        ExclusiveStartKey: lastEvaluatedKey
+        ExclusiveStartKey: lastEvaluatedKey,
       });
       const result = await docClient.send(command);
       if (result.Items && result.Items.length > 0) {
@@ -259,7 +259,7 @@ const listStoresForFranchise = async franchiseId => {
   return [];
 };
 
-const resolveClientLocation = req => {
+const resolveClientLocation = (req) => {
   const forwarded = req.headers['x-forwarded-for'];
   if (Array.isArray(forwarded) && forwarded.length > 0) {
     return forwarded[0];
@@ -278,23 +278,24 @@ const appendAuditEntry = async (storeId, req) => {
   const entry = {
     location: resolveClientLocation(req),
     time: new Date().toISOString(),
-    system: req.get('user-agent') || 'unknown'
+    system: req.get('user-agent') || 'unknown',
   };
 
   const command = new UpdateCommand({
     TableName: STORE_CONFIG_TABLE,
     Key: { store_id: storeId },
-    UpdateExpression: 'SET audit_history = list_append(:entry, if_not_exists(audit_history, :empty))',
+    UpdateExpression:
+      'SET audit_history = list_append(:entry, if_not_exists(audit_history, :empty))',
     ExpressionAttributeValues: {
       ':entry': [entry],
-      ':empty': []
-    }
+      ':empty': [],
+    },
   });
 
   await docClient.send(command);
 };
 
-const isPhoneNumberRegistered = async digits => {
+const isPhoneNumberRegistered = async (digits) => {
   if (!STORE_CONFIG_TABLE || !digits) {
     return false;
   }
@@ -304,13 +305,13 @@ const isPhoneNumberRegistered = async digits => {
     const params = {
       TableName: STORE_CONFIG_TABLE,
       ProjectionExpression: PHONE_FIELDS.concat('store_id').join(', '),
-      ExclusiveStartKey: lastEvaluatedKey
+      ExclusiveStartKey: lastEvaluatedKey,
     };
 
     const result = await docClient.send(new ScanCommand(params));
     const items = result.Items || [];
-    const matchFound = items.some(item =>
-      PHONE_FIELDS.some(field => normalizePhoneDigits(item[field]) === digits)
+    const matchFound = items.some((item) =>
+      PHONE_FIELDS.some((field) => normalizePhoneDigits(item[field]) === digits)
     );
     if (matchFound) {
       return true;
@@ -336,14 +337,14 @@ const sendSignupCredentialsSMS = async ({ phone, storeId, franchiseId }) => {
         variables_values: `${storeId || ''}|${franchiseId || ''}`,
         numbers: phone,
         schedule_time: '',
-        flash: '0'
+        flash: '0',
       },
       {
         headers: {
           authorization: SMS_TOKEN,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        timeout: 10000
+        timeout: 10000,
       }
     );
     logger.info('Signup credentials SMS sent', { store_id: storeId, franchise_id: franchiseId });
@@ -352,7 +353,7 @@ const sendSignupCredentialsSMS = async ({ phone, storeId, franchiseId }) => {
       store_id: storeId,
       franchise_id: franchiseId,
       status: error.response?.status,
-      message: error.response?.data || error.message
+      message: error.response?.data || error.message,
     });
   }
 };
@@ -386,15 +387,17 @@ router.post('/login', async (req, res) => {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: {
-        store_id: store_id
-      }
+        store_id: store_id,
+      },
     });
 
     const result = await docClient.send(command);
 
     if (!result.Item) {
       logger.warn('Store not found during login', { store_id });
-      return res.status(404).json({ error: 'Store not found. Please sign up to create an account.' });
+      return res
+        .status(404)
+        .json({ error: 'Store not found. Please sign up to create an account.' });
     }
 
     const otpKey = createOtpKey({ storeId: store_id, context: 'login' });
@@ -416,7 +419,7 @@ router.post('/login', async (req, res) => {
       vendor_name,
       verified_name,
       store_name,
-      webhook_config
+      webhook_config,
     } = whatsappConfig;
     const storeTrialStarted = whatsappConfig.trial_started ?? whatsappConfig.trail_started ?? null;
     const storeTrialPeriod = whatsappConfig.trial_period ?? null;
@@ -435,7 +438,7 @@ router.post('/login', async (req, res) => {
         franchise_id,
         store_id,
         session_version,
-        iat: Math.floor(Date.now() / 1000)
+        iat: Math.floor(Date.now() / 1000),
       },
       JWT_SECRET,
       { expiresIn: '3d' }
@@ -447,10 +450,10 @@ router.post('/login', async (req, res) => {
       result.Item.customer_type_config || DEFAULT_CUSTOMER_TYPE_CONFIG
     );
 
-    appendAuditEntry(store_id, req).catch(err => {
+    appendAuditEntry(store_id, req).catch((err) => {
       logger.warn('Failed to append audit history', {
         store_id,
-        error: err.message
+        error: err.message,
       });
     });
 
@@ -471,14 +474,13 @@ router.post('/login', async (req, res) => {
       webhook_config: webhook_config || null,
       trial_started,
       trial_period,
-      customer_type_config: customerTypeConfig
+      customer_type_config: customerTypeConfig,
     });
-
   } catch (error) {
-    logger.error('Login error', { 
-      franchise_id, 
-      store_id, 
-      error: error.message 
+    logger.error('Login error', {
+      franchise_id,
+      store_id,
+      error: error.message,
     });
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -486,7 +488,7 @@ router.post('/login', async (req, res) => {
 
 router.get('/login/config', async (req, res) => {
   return res.json({
-    two_step_verification: TWO_STEP_VERIFICATION_ENABLED
+    two_step_verification: TWO_STEP_VERIFICATION_ENABLED,
   });
 });
 
@@ -499,7 +501,7 @@ router.get('/login/options', async (req, res) => {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: { store_id: storeId },
-      ProjectionExpression: 'store_id'
+      ProjectionExpression: 'store_id',
     });
     const result = await docClient.send(command);
     if (!result.Item) {
@@ -507,7 +509,7 @@ router.get('/login/options', async (req, res) => {
     }
     return res.json({
       store_id: storeId,
-      login_method: DEFAULT_LOGIN_METHOD
+      login_method: DEFAULT_LOGIN_METHOD,
     });
   } catch (error) {
     logger.error('Failed to load login options', { store_id: storeId, error: error.message });
@@ -526,7 +528,7 @@ router.post('/login/send-otp', async (req, res) => {
   try {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
-      Key: { store_id }
+      Key: { store_id },
     });
     const result = await docClient.send(command);
     if (!result.Item) {
@@ -548,26 +550,24 @@ router.post('/login/send-otp', async (req, res) => {
         message: SMS_TEMPLATE_ID,
         language: 'english',
         numbers: phone,
-        variables_values: `${otp}|Billbox Login OTP`
+        variables_values: `${otp}|Billbox Login OTP`,
       },
       {
         headers: {
-          authorization: SMS_TOKEN
-        }
+          authorization: SMS_TOKEN,
+        },
       }
     );
 
     return res.json({
       success: true,
-      masked_phone: maskPhone(phone)
+      masked_phone: maskPhone(phone),
     });
   } catch (error) {
     logger.error('Failed to send login OTP', { store_id, error: error.message });
     return res.status(500).json({ error: 'Unable to send login OTP right now.' });
   }
 });
-
-
 
 router.post('/login/password/send-otp', async (req, res) => {
   if (!TWO_STEP_VERIFICATION_ENABLED) {
@@ -591,7 +591,8 @@ router.post('/login/password/send-otp', async (req, res) => {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: { store_id: storeId },
-      ProjectionExpression: 'store_id, password, mobile_number, contact_phone, vendor_phone, phone, mobile'
+      ProjectionExpression:
+        'store_id, password, mobile_number, contact_phone, vendor_phone, phone, mobile',
     });
     const result = await docClient.send(command);
 
@@ -609,7 +610,9 @@ router.post('/login/password/send-otp', async (req, res) => {
       return res.status(401).json({ error: 'Invalid password.' });
     }
 
-    let phone = result.Item.mobile_number ? String(result.Item.mobile_number).replace(/\D/g, '') : '';
+    let phone = result.Item.mobile_number
+      ? String(result.Item.mobile_number).replace(/\D/g, '')
+      : '';
     if (!phone || phone.length !== 10) {
       phone = resolveStorePhone(result.Item);
     }
@@ -630,18 +633,18 @@ router.post('/login/password/send-otp', async (req, res) => {
         message: SMS_TEMPLATE_ID,
         language: 'english',
         numbers: phone,
-        variables_values: `${otp}|Billbox Login OTP`
+        variables_values: `${otp}|Billbox Login OTP`,
       },
       {
         headers: {
-          authorization: SMS_TOKEN
-        }
+          authorization: SMS_TOKEN,
+        },
       }
     );
 
     return res.json({
       success: true,
-      masked_phone: maskPhone(phone)
+      masked_phone: maskPhone(phone),
     });
   } catch (error) {
     logger.error('Failed to send password login OTP', { store_id: storeId, error: error.message });
@@ -668,15 +671,17 @@ router.post('/login/password', async (req, res) => {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: {
-        store_id: store_id
-      }
+        store_id: store_id,
+      },
     });
 
     const result = await docClient.send(command);
 
     if (!result.Item) {
       logger.warn('Store not found during login', { store_id });
-      return res.status(404).json({ error: 'Store not found. Please sign up to create an account.' });
+      return res
+        .status(404)
+        .json({ error: 'Store not found. Please sign up to create an account.' });
     }
 
     const otpKey = createOtpKey({ storeId: store_id, context: 'login_pw' });
@@ -697,7 +702,7 @@ router.post('/login/password', async (req, res) => {
       vendor_name,
       verified_name,
       store_name,
-      webhook_config
+      webhook_config,
     } = whatsappConfig;
     const storeTrialStarted = whatsappConfig.trial_started ?? whatsappConfig.trail_started ?? null;
     const storeTrialPeriod = whatsappConfig.trial_period ?? null;
@@ -715,7 +720,7 @@ router.post('/login/password', async (req, res) => {
         franchise_id,
         store_id,
         session_version,
-        iat: Math.floor(Date.now() / 1000)
+        iat: Math.floor(Date.now() / 1000),
       },
       JWT_SECRET,
       { expiresIn: '3d' }
@@ -727,10 +732,10 @@ router.post('/login/password', async (req, res) => {
       result.Item.customer_type_config || DEFAULT_CUSTOMER_TYPE_CONFIG
     );
 
-    appendAuditEntry(store_id, req).catch(err => {
+    appendAuditEntry(store_id, req).catch((err) => {
       logger.warn('Failed to append audit history', {
         store_id,
-        error: err.message
+        error: err.message,
       });
     });
 
@@ -751,12 +756,12 @@ router.post('/login/password', async (req, res) => {
       webhook_config: webhook_config || null,
       trial_started,
       trial_period,
-      customer_type_config: customerTypeConfig
+      customer_type_config: customerTypeConfig,
     });
   } catch (error) {
     logger.error('Password+OTP login error', {
       store_id,
-      error: error.message
+      error: error.message,
     });
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -782,13 +787,15 @@ router.post('/login/password-only', async (req, res) => {
   try {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
-      Key: { store_id: storeId }
+      Key: { store_id: storeId },
     });
 
     const result = await docClient.send(command);
 
     if (!result.Item) {
-      return res.status(404).json({ error: 'Store not found. Please sign up to create an account.' });
+      return res
+        .status(404)
+        .json({ error: 'Store not found. Please sign up to create an account.' });
     }
 
     if (!result.Item.password) {
@@ -813,7 +820,7 @@ router.post('/login/password-only', async (req, res) => {
       vendor_name,
       verified_name,
       store_name,
-      webhook_config
+      webhook_config,
     } = whatsappConfig;
     const storeTrialStarted = whatsappConfig.trial_started ?? whatsappConfig.trail_started ?? null;
     const storeTrialPeriod = whatsappConfig.trial_period ?? null;
@@ -832,7 +839,7 @@ router.post('/login/password-only', async (req, res) => {
         franchise_id,
         store_id: storeId,
         session_version,
-        iat: Math.floor(Date.now() / 1000)
+        iat: Math.floor(Date.now() / 1000),
       },
       JWT_SECRET,
       { expiresIn: '3d' }
@@ -842,10 +849,10 @@ router.post('/login/password-only', async (req, res) => {
       result.Item.customer_type_config || DEFAULT_CUSTOMER_TYPE_CONFIG
     );
 
-    appendAuditEntry(storeId, req).catch(err => {
+    appendAuditEntry(storeId, req).catch((err) => {
       logger.warn('Failed to append audit history', {
         store_id: storeId,
-        error: err.message
+        error: err.message,
       });
     });
 
@@ -866,7 +873,7 @@ router.post('/login/password-only', async (req, res) => {
       webhook_config: webhook_config || null,
       trial_started,
       trial_period,
-      customer_type_config: customerTypeConfig
+      customer_type_config: customerTypeConfig,
     });
   } catch (error) {
     logger.error('Password-only login error', { store_id: storeId, error: error.message });
@@ -883,7 +890,7 @@ router.get('/profile', async (req, res) => {
   try {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
-      Key: { store_id: storeId }
+      Key: { store_id: storeId },
     });
     const result = await docClient.send(command);
 
@@ -913,10 +920,14 @@ router.get('/profile', async (req, res) => {
       smart_img_urls: Array.isArray(store.smart_img_urls) ? store.smart_img_urls : [],
       smart_header_text: typeof store.smart_header_text === 'string' ? store.smart_header_text : '',
       smart_footer_text: typeof store.smart_footer_text === 'string' ? store.smart_footer_text : '',
-      smart_address_text: typeof store.smart_address_text === 'string' ? store.smart_address_text : '',
-      smart_header_images: Array.isArray(store.smart_header_images) ? store.smart_header_images : [],
-      smart_bottom_banner: typeof store.smart_bottom_banner === 'string' ? store.smart_bottom_banner : null,
-      audit_history: Array.isArray(store.audit_history) ? store.audit_history.slice(0, 10) : []
+      smart_address_text:
+        typeof store.smart_address_text === 'string' ? store.smart_address_text : '',
+      smart_header_images: Array.isArray(store.smart_header_images)
+        ? store.smart_header_images
+        : [],
+      smart_bottom_banner:
+        typeof store.smart_bottom_banner === 'string' ? store.smart_bottom_banner : null,
+      audit_history: Array.isArray(store.audit_history) ? store.audit_history.slice(0, 10) : [],
     });
   } catch (error) {
     logger.error('Failed to load store profile', { store_id: storeId, error: error.message });
@@ -947,7 +958,7 @@ router.post('/profile/smart-ebill/upload', smartEbillUploadMiddleware, async (re
           Bucket: SMART_EBILL_S3_BUCKET,
           Key: key,
           Body: file.buffer,
-          ContentType: file?.mimetype || 'application/octet-stream'
+          ContentType: file?.mimetype || 'application/octet-stream',
         })
       );
       uploadedUrls.push(buildSmartEbillUrl(key));
@@ -957,13 +968,14 @@ router.post('/profile/smart-ebill/upload', smartEbillUploadMiddleware, async (re
     const updateCommand = new UpdateCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: { store_id: storeId },
-      UpdateExpression: 'SET smart_img_urls = list_append(if_not_exists(smart_img_urls, :empty), :newUrls), updated_at = :updated',
+      UpdateExpression:
+        'SET smart_img_urls = list_append(if_not_exists(smart_img_urls, :empty), :newUrls), updated_at = :updated',
       ExpressionAttributeValues: {
         ':empty': [],
         ':newUrls': uploadedUrls,
-        ':updated': now
+        ':updated': now,
       },
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     });
     const result = await docClient.send(updateCommand);
     const finalImages = Array.isArray(result.Attributes?.smart_img_urls)
@@ -972,7 +984,10 @@ router.post('/profile/smart-ebill/upload', smartEbillUploadMiddleware, async (re
 
     return res.json({ success: true, images: finalImages });
   } catch (error) {
-    logger.error('Failed to upload Smart E-bill assets', { store_id: storeId, error: error.message });
+    logger.error('Failed to upload Smart E-bill assets', {
+      store_id: storeId,
+      error: error.message,
+    });
     return res.status(500).json({ error: 'Unable to upload Smart E-bill assets.' });
   }
 });
@@ -1014,7 +1029,7 @@ router.patch('/profile/smart-ebill', async (req, res) => {
   if (imagesProvided) {
     const candidateImages = Array.isArray(req.body?.images) ? req.body.images : [];
     const sanitized = candidateImages
-      .map(value => (typeof value === 'string' ? value.trim() : ''))
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
       .filter(Boolean);
     updateFragments.push('smart_img_urls = :images');
     expressionValues[':images'] = sanitized;
@@ -1023,20 +1038,26 @@ router.patch('/profile/smart-ebill', async (req, res) => {
   if (headerImagesProvided) {
     const candidateHeaders = Array.isArray(req.body?.headerImages) ? req.body.headerImages : [];
     const sanitized = candidateHeaders
-      .map(value => (typeof value === 'string' ? value.trim() : ''))
+      .map((value) => (typeof value === 'string' ? value.trim() : ''))
       .filter(Boolean);
     updateFragments.push('smart_header_images = :headerImages');
     expressionValues[':headerImages'] = sanitized;
   }
 
   if (bottomBannerProvided) {
-    const bannerValue = typeof req.body?.bottomBanner === 'string' ? req.body.bottomBanner.trim() : '';
+    const bannerValue =
+      typeof req.body?.bottomBanner === 'string' ? req.body.bottomBanner.trim() : '';
     updateFragments.push('smart_bottom_banner = :bottomBanner');
     expressionValues[':bottomBanner'] = bannerValue || null;
   }
 
   if (updateFragments.length === 0) {
-    return res.status(400).json({ error: 'Provide headerText, footerText, addressText, images, headerImages, or bottomBanner to update.' });
+    return res
+      .status(400)
+      .json({
+        error:
+          'Provide headerText, footerText, addressText, images, headerImages, or bottomBanner to update.',
+      });
   }
 
   const updateCommand = new UpdateCommand({
@@ -1044,7 +1065,7 @@ router.patch('/profile/smart-ebill', async (req, res) => {
     Key: { store_id: storeId },
     UpdateExpression: `SET ${updateFragments.join(', ')}, updated_at = :updated`,
     ExpressionAttributeValues: expressionValues,
-    ReturnValues: 'ALL_NEW'
+    ReturnValues: 'ALL_NEW',
   });
 
   try {
@@ -1054,24 +1075,31 @@ router.patch('/profile/smart-ebill', async (req, res) => {
       smart_img_urls: Array.isArray(result.Attributes?.smart_img_urls)
         ? result.Attributes.smart_img_urls
         : [],
-      smart_header_text: typeof result.Attributes?.smart_header_text === 'string'
-        ? result.Attributes.smart_header_text
-        : '',
-      smart_footer_text: typeof result.Attributes?.smart_footer_text === 'string'
-        ? result.Attributes.smart_footer_text
-        : '',
-      smart_address_text: typeof result.Attributes?.smart_address_text === 'string'
-        ? result.Attributes.smart_address_text
-        : '',
+      smart_header_text:
+        typeof result.Attributes?.smart_header_text === 'string'
+          ? result.Attributes.smart_header_text
+          : '',
+      smart_footer_text:
+        typeof result.Attributes?.smart_footer_text === 'string'
+          ? result.Attributes.smart_footer_text
+          : '',
+      smart_address_text:
+        typeof result.Attributes?.smart_address_text === 'string'
+          ? result.Attributes.smart_address_text
+          : '',
       smart_header_images: Array.isArray(result.Attributes?.smart_header_images)
         ? result.Attributes.smart_header_images
         : [],
-      smart_bottom_banner: typeof result.Attributes?.smart_bottom_banner === 'string'
-        ? result.Attributes.smart_bottom_banner
-        : null
+      smart_bottom_banner:
+        typeof result.Attributes?.smart_bottom_banner === 'string'
+          ? result.Attributes.smart_bottom_banner
+          : null,
     });
   } catch (error) {
-    logger.error('Failed to update Smart E-bill settings', { store_id: storeId, error: error.message });
+    logger.error('Failed to update Smart E-bill settings', {
+      store_id: storeId,
+      error: error.message,
+    });
     return res.status(500).json({ error: 'Unable to update Smart E-bill settings.' });
   }
 });
@@ -1089,7 +1117,7 @@ router.get('/profile/audit-history', async (req, res) => {
     const command = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: { store_id: storeId },
-      ProjectionExpression: 'store_id, audit_history'
+      ProjectionExpression: 'store_id, audit_history',
     });
     const result = await docClient.send(command);
 
@@ -1100,7 +1128,7 @@ router.get('/profile/audit-history', async (req, res) => {
     const history = Array.isArray(result.Item.audit_history) ? result.Item.audit_history : [];
     res.json({
       store_id: storeId,
-      audit_history: history.slice(0, 10)
+      audit_history: history.slice(0, 10),
     });
   } catch (error) {
     logger.error('Failed to load store audit history', { store_id: storeId, error: error.message });
@@ -1122,7 +1150,7 @@ router.get('/revenue-pin/status', async (req, res) => {
     const currentPin = await fetchStoreRevenuePin(storeId);
     res.json({
       has_pin: Boolean(currentPin?.pin),
-      updated_at: currentPin?.updatedAt || null
+      updated_at: currentPin?.updatedAt || null,
     });
   } catch (error) {
     logger.error('Failed to load revenue PIN status', { store_id: storeId, error: error.message });
@@ -1141,8 +1169,7 @@ router.post('/revenue-pin', async (req, res) => {
   }
 
   const pin = sanitizePin(req.body?.pin);
-  const password =
-    typeof req.body?.password === 'string' ? req.body.password.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
   if (!pin) {
     return res.status(400).json({ error: 'PIN must be 4-6 numeric digits.' });
   }
@@ -1154,7 +1181,7 @@ router.post('/revenue-pin', async (req, res) => {
     const fetchCommand = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: { store_id: storeId },
-      ProjectionExpression: 'revenue_pin, password'
+      ProjectionExpression: 'revenue_pin, password',
     });
     const result = await docClient.send(fetchCommand);
 
@@ -1163,7 +1190,9 @@ router.post('/revenue-pin', async (req, res) => {
     }
 
     if (result.Item.revenue_pin) {
-      return res.status(409).json({ error: 'PIN already set. Use the update endpoint to change it.' });
+      return res
+        .status(409)
+        .json({ error: 'PIN already set. Use the update endpoint to change it.' });
     }
 
     if (!result.Item.password || result.Item.password !== password) {
@@ -1177,9 +1206,9 @@ router.post('/revenue-pin', async (req, res) => {
       UpdateExpression: 'SET revenue_pin = :pin, revenue_pin_updated_at = :updated',
       ExpressionAttributeValues: {
         ':pin': pin,
-        ':updated': now
+        ':updated': now,
       },
-      ReturnValues: 'NONE'
+      ReturnValues: 'NONE',
     });
     await docClient.send(updateCommand);
     res.status(201).json({ success: true, updated_at: now });
@@ -1201,8 +1230,7 @@ router.patch('/revenue-pin', async (req, res) => {
 
   const currentPin = sanitizePin(req.body?.currentPin);
   const newPin = sanitizePin(req.body?.newPin);
-  const password =
-    typeof req.body?.password === 'string' ? req.body.password.trim() : '';
+  const password = typeof req.body?.password === 'string' ? req.body.password.trim() : '';
 
   if (!currentPin || !newPin) {
     return res.status(400).json({ error: 'Both current and new PINs must be 4-6 digits.' });
@@ -1220,7 +1248,7 @@ router.patch('/revenue-pin', async (req, res) => {
     const fetchCommand = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: { store_id: storeId },
-      ProjectionExpression: 'password'
+      ProjectionExpression: 'password',
     });
     const result = await docClient.send(fetchCommand);
 
@@ -1236,9 +1264,9 @@ router.patch('/revenue-pin', async (req, res) => {
       ExpressionAttributeValues: {
         ':newPin': newPin,
         ':updated': now,
-        ':current': currentPin
+        ':current': currentPin,
       },
-      ReturnValues: 'NONE'
+      ReturnValues: 'NONE',
     });
     await docClient.send(command);
     res.json({ success: true, updated_at: now });
@@ -1250,7 +1278,6 @@ router.patch('/revenue-pin', async (req, res) => {
     res.status(500).json({ error: 'Unable to update PIN at this time.' });
   }
 });
-
 
 router.post('/revenue-pin/reset', async (req, res) => {
   const storeId = req.user?.store_id;
@@ -1277,7 +1304,7 @@ router.post('/revenue-pin/reset', async (req, res) => {
     const fetchCommand = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
       Key: { store_id: storeId },
-      ProjectionExpression: 'password, revenue_pin'
+      ProjectionExpression: 'password, revenue_pin',
     });
     const result = await docClient.send(fetchCommand);
 
@@ -1301,9 +1328,9 @@ router.post('/revenue-pin/reset', async (req, res) => {
       ConditionExpression: 'attribute_exists(revenue_pin)',
       ExpressionAttributeValues: {
         ':newPin': newPin,
-        ':updated': now
+        ':updated': now,
       },
-      ReturnValues: 'NONE'
+      ReturnValues: 'NONE',
     });
     await docClient.send(command);
     return res.json({ success: true, updated_at: now });
@@ -1375,14 +1402,14 @@ router.patch('/profile/street-name', async (req, res) => {
       UpdateExpression: 'SET street_name = :street, updated_at = :updated',
       ExpressionAttributeValues: {
         ':street': trimmed,
-        ':updated': now
+        ':updated': now,
       },
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     });
     const result = await docClient.send(command);
     res.json({
       street_name: result.Attributes?.street_name || trimmed,
-      updated_at: result.Attributes?.updated_at || now
+      updated_at: result.Attributes?.updated_at || now,
     });
   } catch (error) {
     logger.error('Failed to update street name', { store_id: storeId, error: error.message });
@@ -1421,14 +1448,14 @@ router.patch('/profile/store-name', async (req, res) => {
       UpdateExpression: 'SET store_name = :storeName, updated_at = :updated',
       ExpressionAttributeValues: {
         ':storeName': trimmed,
-        ':updated': now
+        ':updated': now,
       },
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     });
     const result = await docClient.send(command);
     res.json({
       store_name: result.Attributes?.store_name || trimmed,
-      updated_at: result.Attributes?.updated_at || now
+      updated_at: result.Attributes?.updated_at || now,
     });
   } catch (error) {
     logger.error('Failed to update store name', { store_id: storeId, error: error.message });
@@ -1446,11 +1473,11 @@ async function generateNextStoreId() {
     const command = new ScanCommand({
       TableName: STORE_CONFIG_TABLE,
       ProjectionExpression: 'store_id',
-      ExclusiveStartKey: lastEvaluatedKey
+      ExclusiveStartKey: lastEvaluatedKey,
     });
 
     const result = await docClient.send(command);
-    (result.Items || []).forEach(item => {
+    (result.Items || []).forEach((item) => {
       const numericId = Number(item.store_id);
       if (Number.isFinite(numericId) && numericId > maxId) {
         maxId = numericId;
@@ -1464,25 +1491,15 @@ async function generateNextStoreId() {
 }
 
 router.post('/signup', async (req, res) => {
-  const {
-    fullName,
-    storeName,
-    streetName,
-    brandName,
-    businessType,
-    email,
-    phone,
-    password
-  } = req.body || {};
+  const { fullName, storeName, streetName, brandName, businessType, email, phone, password } =
+    req.body || {};
 
   if (!LEAD_SIGNUPS_TABLE) {
     return res.status(500).json({ error: 'Lead signup table is not configured.' });
   }
 
   if (!fullName || !email || !phone || !password) {
-    return res
-      .status(400)
-      .json({ error: 'fullName, email, phone, and password are required' });
+    return res.status(400).json({ error: 'fullName, email, phone, and password are required' });
   }
 
   try {
@@ -1492,8 +1509,7 @@ router.post('/signup', async (req, res) => {
     const normalizedStoreName = typeof storeName === 'string' ? storeName.trim() : '';
     const normalizedStreetName = typeof streetName === 'string' ? streetName.trim() : '';
     const normalizedBrandName = (brandName || '').trim() || normalizedStoreName;
-    const normalizedBusinessType =
-      typeof businessType === 'string' ? businessType.trim() : '';
+    const normalizedBusinessType = typeof businessType === 'string' ? businessType.trim() : '';
 
     // Ensure email or phone is not already registered
     const duplicateCheck = await docClient.send(
@@ -1502,16 +1518,16 @@ router.post('/signup', async (req, res) => {
         FilterExpression: 'contact_email = :email OR contact_phone = :phone',
         ExpressionAttributeValues: {
           ':email': normalizedEmail,
-          ':phone': normalizedPhone
+          ':phone': normalizedPhone,
         },
         ProjectionExpression: 'store_id',
-        Limit: 1
+        Limit: 1,
       })
     );
 
     if (duplicateCheck.Items && duplicateCheck.Items.length > 0) {
       return res.status(409).json({
-        error: 'An account with this email or phone already exists.'
+        error: 'An account with this email or phone already exists.',
       });
     }
 
@@ -1521,23 +1537,23 @@ router.post('/signup', async (req, res) => {
         FilterExpression: 'email = :email OR phone = :phone',
         ExpressionAttributeValues: {
           ':email': normalizedEmail,
-          ':phone': normalizedPhone
+          ':phone': normalizedPhone,
         },
         ProjectionExpression: 'lead_id',
-        Limit: 1
+        Limit: 1,
       })
     );
 
     if (leadDuplicateCheck.Items && leadDuplicateCheck.Items.length > 0) {
       return res.status(409).json({
-        error: 'A signup with this email or phone already exists.'
+        error: 'A signup with this email or phone already exists.',
       });
     }
 
     // Ensure mobile number is unique across all known phone fields
     if (await isPhoneNumberRegistered(normalizedPhoneDigits)) {
       return res.status(409).json({
-        error: 'This mobile number is already registered. Please enter a different number.'
+        error: 'This mobile number is already registered. Please enter a different number.',
       });
     }
 
@@ -1567,21 +1583,21 @@ router.post('/signup', async (req, res) => {
       password,
       status: 'new',
       source: 'signup',
-      updated_at: now
+      updated_at: now,
     };
 
     await docClient.send(
       new PutCommand({
         TableName: LEAD_SIGNUPS_TABLE,
         Item: leadItem,
-        ConditionExpression: 'attribute_not_exists(lead_id)'
+        ConditionExpression: 'attribute_not_exists(lead_id)',
       })
     );
 
     logger.info('Lead signup captured', { lead_id: leadId, email: normalizedEmail });
     return res.status(201).json({
       success: true,
-      lead_id: leadId
+      lead_id: leadId,
     });
   } catch (error) {
     logger.error('Signup error', { error: error.message });
@@ -1618,17 +1634,23 @@ router.post('/send-otp', async (req, res) => {
       const storeResult = await docClient.send(
         new GetCommand({
           TableName: STORE_CONFIG_TABLE,
-          Key: { store_id }
+          Key: { store_id },
         })
       );
 
       if (!storeResult.Item) {
-        return res.status(404).json({ error: 'Store not found. Please sign up to create an account.' });
+        return res
+          .status(404)
+          .json({ error: 'Store not found. Please sign up to create an account.' });
       }
 
       const storedPhone = resolveStorePhone(storeResult.Item);
       if (!storedPhone || storedPhone.length !== 10) {
-        return res.status(400).json({ error: 'Registered phone number is missing or invalid. Please contact support.' });
+        return res
+          .status(400)
+          .json({
+            error: 'Registered phone number is missing or invalid. Please contact support.',
+          });
       }
 
       if (storedPhone !== normalizedDigits) {
@@ -1642,24 +1664,32 @@ router.post('/send-otp', async (req, res) => {
       if (alreadyRegistered) {
         return res
           .status(409)
-          .json({ error: 'This mobile number is already registered. Please enter a different number.' });
+          .json({
+            error: 'This mobile number is already registered. Please enter a different number.',
+          });
       }
     }
 
     if (isFranchiseFlow) {
       const ownerContact = await getFranchiseOwnerContact(normalizedFranchiseId);
       if (!ownerContact?.phone) {
-        return res.status(404).json({ error: 'Franchise owner contact not found. Please verify the Franchise ID.' });
+        return res
+          .status(404)
+          .json({ error: 'Franchise owner contact not found. Please verify the Franchise ID.' });
       }
       destinationPhone = ownerContact.phone;
       const resolvedFranchiseKey =
         typeof ownerContact.franchiseId === 'string'
           ? ownerContact.franchiseId.trim().toLowerCase()
           : canonicalFranchiseKey;
-      const franchiseContext = isFranchiseReset ? 'franchise_reset' : isFranchiseVerify ? 'franchise_verify' : 'franchise_signup';
+      const franchiseContext = isFranchiseReset
+        ? 'franchise_reset'
+        : isFranchiseVerify
+          ? 'franchise_verify'
+          : 'franchise_signup';
       otpKey = createOtpKey({
         storeId: resolvedFranchiseKey || canonicalFranchiseKey || normalizedFranchiseId,
-        context: franchiseContext
+        context: franchiseContext,
       });
     } else if (!store_id) {
       destinationPhone = normalizedDigits;
@@ -1676,14 +1706,14 @@ router.post('/send-otp', async (req, res) => {
         message: SMS_TEMPLATE_ID,
         variables_values: otp,
         flash: 0,
-        numbers: destinationPhone
+        numbers: destinationPhone,
       },
       {
         headers: {
           authorization: SMS_TOKEN,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
         },
-        timeout: 10000
+        timeout: 10000,
       }
     );
 
@@ -1693,10 +1723,10 @@ router.post('/send-otp', async (req, res) => {
       store_id,
       franchise_id: normalizedFranchiseId,
       status: error.response?.status,
-      message: error.response?.data || error.message
+      message: error.response?.data || error.message,
     });
     return res.status(500).json({
-      error: 'Unable to send OTP. Please check whether given phone number is correct!'
+      error: 'Unable to send OTP. Please check whether given phone number is correct!',
     });
   }
 });
@@ -1710,7 +1740,7 @@ router.post('/reset-password', async (req, res) => {
   try {
     const storeCommand = new GetCommand({
       TableName: STORE_CONFIG_TABLE,
-      Key: { store_id }
+      Key: { store_id },
     });
     const result = await docClient.send(storeCommand);
     if (!result.Item) {
@@ -1734,8 +1764,8 @@ router.post('/reset-password', async (req, res) => {
         Item: {
           ...result.Item,
           password,
-          updated_at: new Date().toISOString()
-        }
+          updated_at: new Date().toISOString(),
+        },
       })
     );
 
@@ -1753,14 +1783,16 @@ router.post('/franchise/reset-password', async (req, res) => {
   if (!franchiseId || !password || !otp) {
     return res
       .status(400)
-      .json({ error: 'franchise_id, password, and otp are required to reset the franchise password.' });
+      .json({
+        error: 'franchise_id, password, and otp are required to reset the franchise password.',
+      });
   }
 
   const normalizedFranchiseId = franchiseId.trim();
   const canonicalFranchiseKey = normalizedFranchiseId.toLowerCase();
   const franchiseOtpKey = createOtpKey({
     storeId: canonicalFranchiseKey || normalizedFranchiseId,
-    context: 'franchise_reset'
+    context: 'franchise_reset',
   });
 
   if (!consumeOtp(franchiseOtpKey, otp)) {
@@ -1772,13 +1804,13 @@ router.post('/franchise/reset-password', async (req, res) => {
     if (!stores.length) {
       return res.status(404).json({
         error:
-          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
       });
     }
 
     const timestamp = new Date().toISOString();
     await Promise.all(
-      stores.map(store =>
+      stores.map((store) =>
         docClient.send(
           new UpdateCommand({
             TableName: STORE_CONFIG_TABLE,
@@ -1786,8 +1818,8 @@ router.post('/franchise/reset-password', async (req, res) => {
             UpdateExpression: 'SET franchise_password = :password, updated_at = :updatedAt',
             ExpressionAttributeValues: {
               ':password': password,
-              ':updatedAt': timestamp
-            }
+              ':updatedAt': timestamp,
+            },
           })
         )
       )
@@ -1797,12 +1829,12 @@ router.post('/franchise/reset-password', async (req, res) => {
       success: true,
       franchise_id: stores[0].franchise_id,
       store_count: stores.length,
-      updated_at: timestamp
+      updated_at: timestamp,
     });
   } catch (error) {
     logger.error('Franchise password reset failed', {
       franchise_id: normalizedFranchiseId,
-      error: error.message
+      error: error.message,
     });
     return res.status(500).json({ error: 'Unable to reset franchise password. Please try again.' });
   }
@@ -1821,7 +1853,7 @@ router.post('/franchise/verify', async (req, res) => {
   const otpCandidates = Array.from(
     new Set(
       [canonicalFranchiseKey, normalizedFranchiseId]
-        .map(value => (typeof value === 'string' ? value.trim() : ''))
+        .map((value) => (typeof value === 'string' ? value.trim() : ''))
         .filter(Boolean)
     )
   );
@@ -1844,7 +1876,7 @@ router.post('/franchise/verify', async (req, res) => {
     if (!matched) {
       return res.status(404).json({
         error:
-          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.'
+          'Franchise ID not found. Enter the ID you received during your first store signup or choose to create a new franchise.',
       });
     }
 
@@ -1852,14 +1884,16 @@ router.post('/franchise/verify', async (req, res) => {
       success: true,
       franchise_id: matched.franchise_id,
       brand_name: matched.brand_name || '',
-      business_type: matched.business_type || ''
+      business_type: matched.business_type || '',
     });
   } catch (error) {
     logger.error('Franchise verification lookup failed', {
       franchise_id: normalizedFranchiseId,
-      error: error.message
+      error: error.message,
     });
-    return res.status(500).json({ error: 'Unable to verify franchise at this time. Please try again.' });
+    return res
+      .status(500)
+      .json({ error: 'Unable to verify franchise at this time. Please try again.' });
   }
 });
 

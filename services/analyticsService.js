@@ -4,12 +4,12 @@ const {
   QueryCommand,
   PutCommand,
   UpdateCommand,
-  GetCommand
+  GetCommand,
 } = require('@aws-sdk/lib-dynamodb');
 const {
   DEFAULT_CUSTOMER_TYPE_CONFIG,
   sanitizeCustomerTypeConfig,
-  determineCustomerType
+  determineCustomerType,
 } = require('../utils/customerTypes');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
@@ -425,18 +425,11 @@ const parseGenericTimestamp = (value) => {
 
 class AnalyticsService {
   buildInvoiceFingerprint(invoice = {}) {
-    const invoiceId =
-      invoice.invoice_id ??
-      invoice.invoiceId ??
-      invoice.invoiceID ??
-      null;
+    const invoiceId = invoice.invoice_id ?? invoice.invoiceId ?? invoice.invoiceID ?? null;
     if (invoiceId) {
       return `id:${invoiceId}`;
     }
-    const invoiceNo =
-      invoice.invoice_no ??
-      invoice.invoiceNo ??
-      null;
+    const invoiceNo = invoice.invoice_no ?? invoice.invoiceNo ?? null;
     if (invoiceNo) {
       return `no:${invoiceNo}`;
     }
@@ -460,7 +453,7 @@ class AnalyticsService {
       const command = new GetCommand({
         TableName: STORE_CONFIG_TABLE,
         Key: { store_id: storeId },
-        ProjectionExpression: 'excluded_invoices'
+        ProjectionExpression: 'excluded_invoices',
       });
       const result = await docClient.send(command);
       const values = Array.isArray(result?.Item?.excluded_invoices)
@@ -468,8 +461,8 @@ class AnalyticsService {
         : [];
       return new Set(
         values
-          .filter(value => typeof value === 'string' && value.trim().length > 0)
-          .map(value => value.trim())
+          .filter((value) => typeof value === 'string' && value.trim().length > 0)
+          .map((value) => value.trim())
       );
     } catch (error) {
       console.error('Failed to load excluded invoices', { storeId, error: error.message });
@@ -491,8 +484,8 @@ class AnalyticsService {
       UpdateExpression: 'SET excluded_invoices = :values, updated_at = :updated',
       ExpressionAttributeValues: {
         ':values': next,
-        ':updated': new Date().toISOString()
-      }
+        ':updated': new Date().toISOString(),
+      },
     });
     await docClient.send(updateCommand);
   }
@@ -501,7 +494,7 @@ class AnalyticsService {
     if (!fingerprint) {
       return;
     }
-    await this.updateExcludedInvoices(storeId, current => {
+    await this.updateExcludedInvoices(storeId, (current) => {
       if (current.includes(fingerprint)) {
         return current;
       }
@@ -513,11 +506,11 @@ class AnalyticsService {
     if (!fingerprint) {
       return;
     }
-    await this.updateExcludedInvoices(storeId, current =>
-      current.filter(value => value !== fingerprint)
+    await this.updateExcludedInvoices(storeId, (current) =>
+      current.filter((value) => value !== fingerprint)
     );
-    await this.updateDailyEndInvoices(storeId, current =>
-      current.filter(value => value !== fingerprint)
+    await this.updateDailyEndInvoices(storeId, (current) =>
+      current.filter((value) => value !== fingerprint)
     );
     const restoringFromDaily =
       Boolean(options?.restoreFromDaily) || Boolean(invoicePayload?.is_daily_end_report);
@@ -535,7 +528,7 @@ class AnalyticsService {
         new GetCommand({
           TableName: STORE_CONFIG_TABLE,
           Key: { store_id: storeId.toString() },
-          ProjectionExpression: 'daily_end_invoices'
+          ProjectionExpression: 'daily_end_invoices',
         })
       );
       const values = Array.isArray(result?.Item?.daily_end_invoices)
@@ -543,8 +536,8 @@ class AnalyticsService {
         : [];
       return new Set(
         values
-          .filter(value => typeof value === 'string' && value.trim().length > 0)
-          .map(value => value.trim())
+          .filter((value) => typeof value === 'string' && value.trim().length > 0)
+          .map((value) => value.trim())
       );
     } catch (error) {
       console.error('Failed to load daily end invoices', { storeId, error: error.message });
@@ -566,8 +559,8 @@ class AnalyticsService {
       UpdateExpression: 'SET daily_end_invoices = :values, updated_at = :updated',
       ExpressionAttributeValues: {
         ':values': next,
-        ':updated': new Date().toISOString()
-      }
+        ':updated': new Date().toISOString(),
+      },
     });
     await docClient.send(updateCommand);
   }
@@ -576,7 +569,7 @@ class AnalyticsService {
     if (!fingerprint) {
       return;
     }
-    await this.updateDailyEndInvoices(storeId, current => {
+    await this.updateDailyEndInvoices(storeId, (current) => {
       if (current.includes(fingerprint)) {
         return current;
       }
@@ -593,10 +586,7 @@ class AnalyticsService {
     }
     const normalizedStoreId = storeId.toString();
     const invoiceId =
-      invoiceData?.invoice_id ??
-      invoiceData?.invoiceId ??
-      invoiceData?.invoiceID ??
-      null;
+      invoiceData?.invoice_id ?? invoiceData?.invoiceId ?? invoiceData?.invoiceID ?? null;
     if (!invoiceId) {
       console.warn('Unable to mark invoice without invoice_id', { storeId });
       return;
@@ -608,15 +598,15 @@ class AnalyticsService {
           Key: { store_id: normalizedStoreId, invoice_id: invoiceId },
           UpdateExpression: 'SET customer_name = :customerName',
           ExpressionAttributeValues: {
-            ':customerName': customerName ?? null
-          }
+            ':customerName': customerName ?? null,
+          },
         })
       );
     } catch (error) {
       console.error('Failed to update invoice customer name', {
         storeId,
         invoiceId,
-        error: error.message
+        error: error.message,
       });
     }
   }
@@ -629,7 +619,7 @@ class AnalyticsService {
       const result = await docClient.send(
         new GetCommand({
           TableName: STORE_CONFIG_TABLE,
-          Key: { store_id: storeId.toString() }
+          Key: { store_id: storeId.toString() },
         })
       );
       if (result.Item?.customer_type_config) {
@@ -646,14 +636,14 @@ class AnalyticsService {
     try {
       const items = await scanAll({
         TableName: TABLE_NAME,
-        ProjectionExpression: 'store_id'
+        ProjectionExpression: 'store_id',
       });
-      
-      const uniqueStores = [...new Set(items.map(item => item.store_id))];
-      
-      return uniqueStores.map(storeId => ({
+
+      const uniqueStores = [...new Set(items.map((item) => item.store_id))];
+
+      return uniqueStores.map((storeId) => ({
         store_id: storeId,
-        name: `Store ${storeId}`
+        name: `Store ${storeId}`,
       }));
     } catch (error) {
       console.error('Error fetching stores:', error);
@@ -667,32 +657,37 @@ class AnalyticsService {
       const includeExcluded = Object.prototype.hasOwnProperty.call(options, 'includeExcluded')
         ? Boolean(options.includeExcluded)
         : true;
-      const includeDailyEndReports = Object.prototype.hasOwnProperty.call(options, 'includeDailyEndReports')
+      const includeDailyEndReports = Object.prototype.hasOwnProperty.call(
+        options,
+        'includeDailyEndReports'
+      )
         ? Boolean(options.includeDailyEndReports)
         : false;
       const onlyDailyEndReports = Boolean(options.onlyDailyEndReports);
-      const exclusionSet = storeId && storeId !== 'ALL' ? await this.getExcludedInvoiceSet(storeId) : null;
-      const dailyEndSet = storeId && storeId !== 'ALL' ? await this.getDailyEndInvoiceSet(storeId) : null;
+      const exclusionSet =
+        storeId && storeId !== 'ALL' ? await this.getExcludedInvoiceSet(storeId) : null;
+      const dailyEndSet =
+        storeId && storeId !== 'ALL' ? await this.getDailyEndInvoiceSet(storeId) : null;
       const scanParams =
         storeId === 'ALL'
           ? {
               TableName: TABLE_NAME,
               ProjectionExpression:
-                'customer_phone, customer_name, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, total_amount'
+                'customer_phone, customer_name, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, total_amount',
             }
           : {
               TableName: TABLE_NAME,
               FilterExpression: 'store_id = :storeId',
               ExpressionAttributeValues: {
-                ':storeId': storeId
+                ':storeId': storeId,
               },
               ProjectionExpression:
-                'customer_phone, customer_name, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, total_amount'
+                'customer_phone, customer_name, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, total_amount',
             };
 
       const items = await scanAll(scanParams);
-      
-      const invoices = items.map(item => {
+
+      const invoices = items.map((item) => {
         const fingerprint = this.buildInvoiceFingerprint(item);
         const isExcluded = exclusionSet ? exclusionSet.has(fingerprint) : false;
         const isDailyEndReport =
@@ -707,20 +702,20 @@ class AnalyticsService {
           total_amount: parseFloat(item.total_amount) || 0,
           fingerprint,
           is_excluded: isExcluded,
-          is_daily_end_report: isDailyEndReport
+          is_daily_end_report: isDailyEndReport,
         };
       });
 
       let workingInvoices = invoices;
       if (onlyDailyEndReports) {
-        workingInvoices = invoices.filter(invoice => invoice.is_daily_end_report);
+        workingInvoices = invoices.filter((invoice) => invoice.is_daily_end_report);
       } else if (!includeDailyEndReports) {
-        workingInvoices = invoices.filter(invoice => !invoice.is_daily_end_report);
+        workingInvoices = invoices.filter((invoice) => !invoice.is_daily_end_report);
       }
 
       return includeExcluded
         ? workingInvoices
-        : workingInvoices.filter(invoice => !invoice.is_excluded);
+        : workingInvoices.filter((invoice) => !invoice.is_excluded);
     } catch (error) {
       console.error('Error fetching invoices:', error);
       throw error;
@@ -731,40 +726,40 @@ class AnalyticsService {
     return this.getInvoices(storeId, {
       ...options,
       includeDailyEndReports: true,
-      onlyDailyEndReports: true
+      onlyDailyEndReports: true,
     });
   }
 
   async getAllInvoicesNormalized() {
     try {
-        const items = await scanAll({
-          TableName: TABLE_NAME,
-          ProjectionExpression:
-            '#store_id, customer_phone, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, processed_iso_ist, total_amount, total_items, discount_amount',
-          ExpressionAttributeNames: {
-            '#store_id': 'store_id',
-          },
-        });
+      const items = await scanAll({
+        TableName: TABLE_NAME,
+        ProjectionExpression:
+          '#store_id, customer_phone, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, processed_iso_ist, total_amount, total_items, discount_amount',
+        ExpressionAttributeNames: {
+          '#store_id': 'store_id',
+        },
+      });
 
-        return items.map((item) => {
-          const normalizedStoreId = normalizeStoreIdValue(item.store_id);
-          return {
-            store_id: normalizedStoreId || 'UNKNOWN',
-            raw_store_id: item.store_id || null,
-            customer_phone: item.customer_phone || null,
-            invoice_no: item.invoice_no || item.invoice_id || null,
-            invoice_id: item.invoice_id || null,
-            invoice_date: item.invoice_date || null,
-            processed_timestamp_ist: item.processed_timestamp_ist || null,
-            processed_iso_ist: item.processed_iso_ist || null,
-            total_amount: parseFloat(item.total_amount) || 0,
-            total_items: Number(item.total_items) || 0,
-            discount_amount: Number(item.discount_amount) || 0,
-          };
-        });
-      } catch (error) {
-        console.error('Error fetching normalized invoices:', error);
-        throw error;
+      return items.map((item) => {
+        const normalizedStoreId = normalizeStoreIdValue(item.store_id);
+        return {
+          store_id: normalizedStoreId || 'UNKNOWN',
+          raw_store_id: item.store_id || null,
+          customer_phone: item.customer_phone || null,
+          invoice_no: item.invoice_no || item.invoice_id || null,
+          invoice_id: item.invoice_id || null,
+          invoice_date: item.invoice_date || null,
+          processed_timestamp_ist: item.processed_timestamp_ist || null,
+          processed_iso_ist: item.processed_iso_ist || null,
+          total_amount: parseFloat(item.total_amount) || 0,
+          total_items: Number(item.total_items) || 0,
+          discount_amount: Number(item.discount_amount) || 0,
+        };
+      });
+    } catch (error) {
+      console.error('Error fetching normalized invoices:', error);
+      throw error;
     }
   }
 
@@ -788,18 +783,18 @@ class AnalyticsService {
       KeyConditionExpression: '#store_id = :storeId AND #processed_iso_ist BETWEEN :start AND :end',
       ExpressionAttributeNames: {
         '#store_id': 'store_id',
-        '#processed_iso_ist': 'processed_iso_ist'
+        '#processed_iso_ist': 'processed_iso_ist',
       },
       ExpressionAttributeValues: {
         ':storeId': normalizedStoreId,
         ':start': startValue,
-        ':end': endValue
+        ':end': endValue,
       },
       ProjectionExpression:
-        '#store_id, customer_phone, customer_name, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, processed_iso_ist, total_amount'
+        '#store_id, customer_phone, customer_name, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, processed_iso_ist, total_amount',
     });
 
-    return items.map(item => {
+    return items.map((item) => {
       const fingerprint = this.buildInvoiceFingerprint(item);
       return {
         store_id: normalizeStoreIdValue(item.store_id) || 'UNKNOWN',
@@ -812,7 +807,7 @@ class AnalyticsService {
         processed_timestamp_ist: item.processed_timestamp_ist || item.invoice_date || null,
         processed_iso_ist: item.processed_iso_ist || null,
         total_amount: parseFloat(item.total_amount) || 0,
-        fingerprint
+        fingerprint,
       };
     });
   }
@@ -824,20 +819,21 @@ class AnalyticsService {
         storeId === 'ALL'
           ? {
               TableName: TABLE_NAME,
-              ProjectionExpression: 'customer_phone, customer_name, invoice_date, total_amount'
+              ProjectionExpression: 'customer_phone, customer_name, invoice_date, total_amount',
             }
           : {
               TableName: TABLE_NAME,
               FilterExpression: 'store_id = :storeId',
               ExpressionAttributeValues: {
-                ':storeId': storeId
+                ':storeId': storeId,
               },
-              ProjectionExpression: 'customer_phone, customer_name, invoice_date, total_amount'
+              ProjectionExpression: 'customer_phone, customer_name, invoice_date, total_amount',
             };
 
       const items = await scanAll(scanParams);
-      const dailyEndSet = storeId && storeId !== 'ALL' ? await this.getDailyEndInvoiceSet(storeId) : null;
-      const visibleItems = items.filter(item => {
+      const dailyEndSet =
+        storeId && storeId !== 'ALL' ? await this.getDailyEndInvoiceSet(storeId) : null;
+      const visibleItems = items.filter((item) => {
         if (isDailyEndReportInvoice(item)) {
           return false;
         }
@@ -847,29 +843,32 @@ class AnalyticsService {
         const fingerprint = this.buildInvoiceFingerprint(item);
         return !dailyEndSet.has(fingerprint);
       });
-      const exclusionSet = storeId && storeId !== 'ALL' ? await this.getExcludedInvoiceSet(storeId) : null;
-      const mappedInvoices = visibleItems.map(item => ({
+      const exclusionSet =
+        storeId && storeId !== 'ALL' ? await this.getExcludedInvoiceSet(storeId) : null;
+      const mappedInvoices = visibleItems.map((item) => ({
         customer_phone: item.customer_phone || 'N/A',
         invoice_date: item.invoice_date,
         total_amount: parseFloat(item.total_amount) || 0,
-        _fingerprint: this.buildInvoiceFingerprint(item)
+        _fingerprint: this.buildInvoiceFingerprint(item),
       }));
       const invoices = exclusionSet
-        ? mappedInvoices.filter(inv => !exclusionSet.has(inv._fingerprint)).map(inv => ({
+        ? mappedInvoices
+            .filter((inv) => !exclusionSet.has(inv._fingerprint))
+            .map((inv) => ({
+              customer_phone: inv.customer_phone,
+              invoice_date: inv.invoice_date,
+              total_amount: inv.total_amount,
+            }))
+        : mappedInvoices.map((inv) => ({
             customer_phone: inv.customer_phone,
             invoice_date: inv.invoice_date,
-            total_amount: inv.total_amount
-          }))
-        : mappedInvoices.map(inv => ({
-            customer_phone: inv.customer_phone,
-            invoice_date: inv.invoice_date,
-            total_amount: inv.total_amount
+            total_amount: inv.total_amount,
           }));
 
       // Filter by date range if provided
       let filteredInvoices = invoices;
       if (fromDate || toDate) {
-        filteredInvoices = invoices.filter(invoice => {
+        filteredInvoices = invoices.filter((invoice) => {
           const invoiceDate = new Date(invoice.invoice_date);
           if (fromDate && invoiceDate < new Date(fromDate)) return false;
           if (toDate && invoiceDate > new Date(toDate)) return false;
@@ -878,42 +877,43 @@ class AnalyticsService {
       }
 
       // Calculate KPIs
-      const totalCustomers = new Set(filteredInvoices.map(inv => inv.customer_phone)).size;
-      
+      const totalCustomers = new Set(filteredInvoices.map((inv) => inv.customer_phone)).size;
+
       // Calculate repeat customer rate
       const customerCounts = {};
-      filteredInvoices.forEach(inv => {
+      filteredInvoices.forEach((inv) => {
         customerCounts[inv.customer_phone] = (customerCounts[inv.customer_phone] || 0) + 1;
       });
-      const repeatCustomers = Object.values(customerCounts).filter(count => count > 1).length;
-      const repeatCustomerRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers * 100) : 0;
+      const repeatCustomers = Object.values(customerCounts).filter((count) => count > 1).length;
+      const repeatCustomerRate = totalCustomers > 0 ? (repeatCustomers / totalCustomers) * 100 : 0;
 
       // Calculate average transaction value
       const totalRevenue = filteredInvoices.reduce((sum, inv) => sum + inv.total_amount, 0);
-      const avgTransactionValue = filteredInvoices.length > 0 ? totalRevenue / filteredInvoices.length : 0;
+      const avgTransactionValue =
+        filteredInvoices.length > 0 ? totalRevenue / filteredInvoices.length : 0;
 
       // Calculate new customers this month
       const currentMonth = new Date();
       const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-      const thisMonthInvoices = filteredInvoices.filter(inv => 
-        new Date(inv.invoice_date) >= startOfMonth
+      const thisMonthInvoices = filteredInvoices.filter(
+        (inv) => new Date(inv.invoice_date) >= startOfMonth
       );
-      const thisMonthCustomers = new Set(thisMonthInvoices.map(inv => inv.customer_phone));
-      
+      const thisMonthCustomers = new Set(thisMonthInvoices.map((inv) => inv.customer_phone));
+
       // Find customers who had no invoices before this month
-      const beforeThisMonth = filteredInvoices.filter(inv => 
-        new Date(inv.invoice_date) < startOfMonth
+      const beforeThisMonth = filteredInvoices.filter(
+        (inv) => new Date(inv.invoice_date) < startOfMonth
       );
-      const existingCustomers = new Set(beforeThisMonth.map(inv => inv.customer_phone));
+      const existingCustomers = new Set(beforeThisMonth.map((inv) => inv.customer_phone));
       const newCustomersThisMonth = Array.from(thisMonthCustomers).filter(
-        customer => !existingCustomers.has(customer)
+        (customer) => !existingCustomers.has(customer)
       ).length;
 
       return {
         totalCustomers,
         repeatCustomerRate: Math.round(repeatCustomerRate * 100) / 100,
         avgTransactionValue: Math.round(avgTransactionValue * 100) / 100,
-        newCustomersThisMonth
+        newCustomersThisMonth,
       };
     } catch (error) {
       console.error('Error fetching KPIs:', error);
@@ -949,8 +949,7 @@ class AnalyticsService {
         last_status_update: campaignDetail.last_status_update || campaignDetail.sent_at,
         campaign_id: campaignDetail.campaign_id || campaignDetail.campaignId || null,
         error_reason: campaignDetail.error_reason || null,
-        error_code:
-          campaignDetail.error_code === undefined ? null : campaignDetail.error_code
+        error_code: campaignDetail.error_code === undefined ? null : campaignDetail.error_code,
       };
 
       if (!item.template_name) {
@@ -998,9 +997,9 @@ class AnalyticsService {
 
       const command = new PutCommand({
         TableName: CAMPAIGN_TABLE_NAME,
-        Item: item
+        Item: item,
       });
-      
+
       await docClient.send(command);
       return { success: true };
     } catch (error) {
@@ -1024,16 +1023,16 @@ class AnalyticsService {
             ExpressionAttributeNames: {
               '#campaign_id': 'campaign_id',
               '#store_id': 'store_id',
-              '#customer_phone': 'customer_phone'
+              '#customer_phone': 'customer_phone',
             },
             ExpressionAttributeValues: {
               ':campaignId': campaignId,
               ':storeId': storeId,
-              ':customerPhone': customerPhone
+              ':customerPhone': customerPhone,
             },
             FilterExpression: '#store_id = :storeId AND #customer_phone = :customerPhone',
             ScanIndexForward: false,
-            Limit: 1
+            Limit: 1,
           })
         );
 
@@ -1044,11 +1043,11 @@ class AnalyticsService {
             error_reason: campaignDetail.error_reason || campaignDetail.errorReason || null,
             error_code:
               campaignDetail.error_code === undefined
-                ? campaignDetail.errorCode ?? null
+                ? (campaignDetail.errorCode ?? null)
                 : campaignDetail.error_code,
             message_id: campaignDetail.message_id || null,
             last_status_update: campaignDetail.last_status_update || campaignDetail.sent_at || null,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           };
 
           await docClient.send(
@@ -1056,7 +1055,7 @@ class AnalyticsService {
               TableName: CAMPAIGN_TABLE_NAME,
               Key: {
                 store_id: existing.store_id,
-                sent_at: existing.sent_at
+                sent_at: existing.sent_at,
               },
               UpdateExpression:
                 'SET #status = :status, #error_reason = :errorReason, #error_code = :errorCode, #message_id = :messageId, #last_status_update = :lastStatusUpdate, #updated_at = :updatedAt',
@@ -1066,7 +1065,7 @@ class AnalyticsService {
                 '#error_code': 'error_code',
                 '#message_id': 'message_id',
                 '#last_status_update': 'last_status_update',
-                '#updated_at': 'updated_at'
+                '#updated_at': 'updated_at',
               },
               ExpressionAttributeValues: {
                 ':status': updateFields.status,
@@ -1074,8 +1073,8 @@ class AnalyticsService {
                 ':errorCode': updateFields.error_code,
                 ':messageId': updateFields.message_id,
                 ':lastStatusUpdate': updateFields.last_status_update,
-                ':updatedAt': updateFields.updated_at
-              }
+                ':updatedAt': updateFields.updated_at,
+              },
             })
           );
 
@@ -1095,13 +1094,13 @@ class AnalyticsService {
           ExpressionAttributeNames: {
             '#campaign_id': 'campaign_id',
             '#store_id': 'store_id',
-            '#customer_phone': 'customer_phone'
+            '#customer_phone': 'customer_phone',
           },
           ExpressionAttributeValues: {
             ':campaignId': campaignId,
             ':storeId': storeId,
-            ':customerPhone': customerPhone
-          }
+            ':customerPhone': customerPhone,
+          },
         });
 
         if (scanItems.length > 0) {
@@ -1116,11 +1115,11 @@ class AnalyticsService {
             error_reason: campaignDetail.error_reason || campaignDetail.errorReason || null,
             error_code:
               campaignDetail.error_code === undefined
-                ? campaignDetail.errorCode ?? null
+                ? (campaignDetail.errorCode ?? null)
                 : campaignDetail.error_code,
             message_id: campaignDetail.message_id || null,
             last_status_update: campaignDetail.last_status_update || campaignDetail.sent_at || null,
-            updated_at: new Date().toISOString()
+            updated_at: new Date().toISOString(),
           };
 
           await docClient.send(
@@ -1128,7 +1127,7 @@ class AnalyticsService {
               TableName: CAMPAIGN_TABLE_NAME,
               Key: {
                 store_id: existing.store_id,
-                sent_at: existing.sent_at
+                sent_at: existing.sent_at,
               },
               UpdateExpression:
                 'SET #status = :status, #error_reason = :errorReason, #error_code = :errorCode, #message_id = :messageId, #last_status_update = :lastStatusUpdate, #updated_at = :updatedAt',
@@ -1138,7 +1137,7 @@ class AnalyticsService {
                 '#error_code': 'error_code',
                 '#message_id': 'message_id',
                 '#last_status_update': 'last_status_update',
-                '#updated_at': 'updated_at'
+                '#updated_at': 'updated_at',
               },
               ExpressionAttributeValues: {
                 ':status': updateFields.status,
@@ -1146,8 +1145,8 @@ class AnalyticsService {
                 ':errorCode': updateFields.error_code,
                 ':messageId': updateFields.message_id,
                 ':lastStatusUpdate': updateFields.last_status_update,
-                ':updatedAt': updateFields.updated_at
-              }
+                ':updatedAt': updateFields.updated_at,
+              },
             })
           );
 
@@ -1168,14 +1167,14 @@ class AnalyticsService {
         TableName: CAMPAIGN_TABLE_NAME,
         KeyConditionExpression: 'store_id = :storeId',
         ExpressionAttributeValues: {
-          ':storeId': storeId
+          ':storeId': storeId,
         },
-        ScanIndexForward: false // Sort by sent_at in descending order (newest first)
+        ScanIndexForward: false, // Sort by sent_at in descending order (newest first)
       });
-      
+
       const result = await docClient.send(command);
-      
-      return result.Items.map(item => ({
+
+      return result.Items.map((item) => ({
         campaignName: item.campaign_name,
         templateName: item.template_name || null,
         templateLanguage: item.template_language || null,
@@ -1192,7 +1191,7 @@ class AnalyticsService {
         resend_enabled: item.resend_enabled ?? null,
         resend_delay_option: item.resend_delay_option || null,
         errorReason: item.error_reason || null,
-        errorCode: item.error_code ?? null
+        errorCode: item.error_code ?? null,
       }));
     } catch (error) {
       console.error('Error fetching campaign history:', error);
@@ -1210,7 +1209,7 @@ class AnalyticsService {
         const result = await docClient.send(
           new GetCommand({
             TableName: CAMPAIGN_METADATA_TABLE,
-            Key: { campaign_id: campaignId }
+            Key: { campaign_id: campaignId },
           })
         );
         const item = result.Item || null;
@@ -1227,7 +1226,7 @@ class AnalyticsService {
             header_image_s3_key: item.header_image_s3_key || null,
             header_media_id: item.header_media_id || null,
             resend_enabled: item.resend_enabled ?? null,
-            resend_delay_option: item.resend_delay_option || null
+            resend_delay_option: item.resend_delay_option || null,
           };
         }
       } catch (error) {
@@ -1240,10 +1239,10 @@ class AnalyticsService {
     }
 
     const expressionAttributeNames = {
-      '#campaign_id': 'campaign_id'
+      '#campaign_id': 'campaign_id',
     };
     const expressionAttributeValues = {
-      ':campaignId': campaignId
+      ':campaignId': campaignId,
     };
     const queryBase = {
       TableName: CAMPAIGN_TABLE_NAME,
@@ -1251,7 +1250,7 @@ class AnalyticsService {
       KeyConditionExpression: '#campaign_id = :campaignId',
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
-      ScanIndexForward: true
+      ScanIndexForward: true,
     };
 
     if (storeId) {
@@ -1265,13 +1264,11 @@ class AnalyticsService {
       const result = await docClient.send(
         new QueryCommand({
           ...queryBase,
-          ExclusiveStartKey: lastEvaluatedKey
+          ExclusiveStartKey: lastEvaluatedKey,
         })
       );
       const items = Array.isArray(result.Items) ? result.Items : [];
-      const match = storeId
-        ? items.find(item => item.store_id === storeId)
-        : items[0];
+      const match = storeId ? items.find((item) => item.store_id === storeId) : items[0];
       if (match) {
         return {
           campaign_id: match.campaign_id || null,
@@ -1284,7 +1281,7 @@ class AnalyticsService {
           send_mode: match.send_mode || null,
           header_image_s3_key: match.header_image_s3_key || null,
           resend_enabled: match.resend_enabled ?? null,
-          resend_delay_option: match.resend_delay_option || null
+          resend_delay_option: match.resend_delay_option || null,
         };
       }
       lastEvaluatedKey = result.LastEvaluatedKey;
@@ -1306,30 +1303,31 @@ class AnalyticsService {
         TableName: CAMPAIGN_TABLE_NAME,
         FilterExpression: 'message_id = :messageId',
         ExpressionAttributeValues: {
-          ':messageId': messageId
+          ':messageId': messageId,
         },
-        ProjectionExpression: 'store_id, sent_at'
+        ProjectionExpression: 'store_id, sent_at',
       });
       if (!items.length) {
         return;
       }
 
       await Promise.all(
-        items.map(item => {
+        items.map((item) => {
           const updateExpressionParts = ['#status = :status', '#updated = :updated'];
           const expressionAttributeNames = {
             '#status': 'status',
-            '#updated': 'last_status_update'
+            '#updated': 'last_status_update',
           };
           const expressionAttributeValues = {
             ':status': status,
-            ':updated': timestamp
+            ':updated': timestamp,
           };
 
           expressionAttributeNames['#error_reason'] = 'error_reason';
           expressionAttributeNames['#error_code'] = 'error_code';
           updateExpressionParts.push('#error_reason = :errorReason', '#error_code = :errorCode');
-          expressionAttributeValues[':errorReason'] = errorInfo?.details || errorInfo?.title || null;
+          expressionAttributeValues[':errorReason'] =
+            errorInfo?.details || errorInfo?.title || null;
           expressionAttributeValues[':errorCode'] = errorInfo?.code ?? null;
 
           return docClient.send(
@@ -1337,11 +1335,11 @@ class AnalyticsService {
               TableName: CAMPAIGN_TABLE_NAME,
               Key: {
                 store_id: item.store_id,
-                sent_at: item.sent_at
+                sent_at: item.sent_at,
               },
               UpdateExpression: `SET ${updateExpressionParts.join(', ')}`,
               ExpressionAttributeNames: expressionAttributeNames,
-              ExpressionAttributeValues: expressionAttributeValues
+              ExpressionAttributeValues: expressionAttributeValues,
             })
           );
         })
@@ -1355,51 +1353,51 @@ class AnalyticsService {
   async getCustomerKPIs(storeId, timeFilter = 'monthly') {
     try {
       const invoices = await this.getInvoices(storeId, { includeExcluded: false });
-      
+
       // Parse dates and filter by time period
       const parseInvoiceDate = (dateString) => {
         if (!dateString) return null;
-        
+
         // Try DD-MM-YYYY HH:mm:ss format first
         let match = dateString.match(/^(\d{1,2})-(\d{1,2})-(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
         if (match) {
           const [, day, month, year, hour, minute, second] = match;
           return new Date(year, month - 1, day, hour, minute, second);
         }
-        
+
         // Try other formats...
         match = dateString.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
         if (match) {
           const [, day, month, year] = match;
           return new Date(year, month - 1, day);
         }
-        
+
         match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{2}):(\d{2})$/);
         if (match) {
           const [, day, month, year, hour, minute, second] = match;
           return new Date(year, month - 1, day, hour, minute, second);
         }
-        
+
         match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
         if (match) {
           const [, day, month, year] = match;
           return new Date(year, month - 1, day);
         }
-        
+
         match = dateString.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2})$/);
         if (match) {
           const [, day, month, year] = match;
           const fullYear = parseInt(year) + 2000;
           return new Date(fullYear, month - 1, day);
         }
-        
+
         return null;
       };
-      
+
       // Filter invoices by time period
       const now = new Date();
       let startDate;
-      
+
       switch (timeFilter) {
         case 'daily':
           startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1420,35 +1418,35 @@ class AnalyticsService {
         default:
           startDate = new Date(now.getFullYear(), now.getMonth(), 1);
       }
-      
-      const filteredInvoices = invoices.filter(invoice => {
+
+      const filteredInvoices = invoices.filter((invoice) => {
         const date = parseInvoiceDate(invoice.invoice_date);
         return date && date >= startDate;
       });
-      
+
       // Calculate KPIs
       const totalBills = filteredInvoices.length;
-      const uniqueCustomers = new Set(filteredInvoices.map(inv => inv.customer_phone));
+      const uniqueCustomers = new Set(filteredInvoices.map((inv) => inv.customer_phone));
       const totalCustomers = uniqueCustomers.size;
       const totalSales = filteredInvoices.reduce((sum, inv) => sum + inv.total_amount, 0);
       const avgBillSpent = totalBills > 0 ? totalSales / totalBills : 0;
-      
+
       // Calculate new vs returning customers
       const customerCounts = {};
-      filteredInvoices.forEach(inv => {
+      filteredInvoices.forEach((inv) => {
         customerCounts[inv.customer_phone] = (customerCounts[inv.customer_phone] || 0) + 1;
       });
-      
-      const newCustomers = Object.values(customerCounts).filter(count => count === 1).length;
-      const returningCustomers = Object.values(customerCounts).filter(count => count > 1).length;
-      
+
+      const newCustomers = Object.values(customerCounts).filter((count) => count === 1).length;
+      const returningCustomers = Object.values(customerCounts).filter((count) => count > 1).length;
+
       return {
         totalBills,
         totalCustomers,
         totalSales: Math.round(totalSales),
         avgBillSpent: Math.round(avgBillSpent),
         newCustomers,
-        returningCustomers
+        returningCustomers,
       };
     } catch (error) {
       console.error('Error fetching customer KPIs:', error);
@@ -1460,34 +1458,34 @@ class AnalyticsService {
   async getCustomerSpend(storeId, timeFilter = 'monthly') {
     try {
       const invoices = await this.getInvoices(storeId, { includeExcluded: false });
-      
+
       // Group by customer and calculate spend
       const customerSpends = {};
-      invoices.forEach(invoice => {
+      invoices.forEach((invoice) => {
         if (!customerSpends[invoice.customer_phone]) {
           customerSpends[invoice.customer_phone] = {
             totalSpent: 0,
-            transactionCount: 0
+            transactionCount: 0,
           };
         }
         customerSpends[invoice.customer_phone].totalSpent += invoice.total_amount;
         customerSpends[invoice.customer_phone].transactionCount += 1;
       });
-      
+
       let newCustomerSpend = 0;
       let repeatCustomerSpend = 0;
-      
-      Object.values(customerSpends).forEach(customer => {
+
+      Object.values(customerSpends).forEach((customer) => {
         if (customer.transactionCount === 1) {
           newCustomerSpend += customer.totalSpent;
         } else {
           repeatCustomerSpend += customer.totalSpent;
         }
       });
-      
+
       return {
         newCustomerSpend: Math.round(newCustomerSpend),
-        repeatCustomerSpend: Math.round(repeatCustomerSpend)
+        repeatCustomerSpend: Math.round(repeatCustomerSpend),
       };
     } catch (error) {
       console.error('Error fetching customer spend:', error);
@@ -1501,17 +1499,18 @@ class AnalyticsService {
       const command = new QueryCommand({
         TableName: CAMPAIGN_TABLE_NAME,
         KeyConditionExpression: 'store_id = :storeId',
-        FilterExpression: 'customer_phone = :customerPhone OR normalized_customer_phone = :customerPhone',
+        FilterExpression:
+          'customer_phone = :customerPhone OR normalized_customer_phone = :customerPhone',
         ExpressionAttributeValues: {
           ':storeId': storeId,
-          ':customerPhone': customerPhone
+          ':customerPhone': customerPhone,
         },
-        ScanIndexForward: false // Sort by sent_at in descending order (newest first)
+        ScanIndexForward: false, // Sort by sent_at in descending order (newest first)
       });
-      
+
       const result = await docClient.send(command);
-      
-      return result.Items.map(item => ({
+
+      return result.Items.map((item) => ({
         campaign_id: item.message_id || `${item.store_id}-${item.sent_at}`,
         campaign_name: item.campaign_name,
         customer_phone: item.customer_phone,
@@ -1519,7 +1518,7 @@ class AnalyticsService {
         sent_at: item.sent_at,
         status: item.status,
         message_id: item.message_id || null,
-        last_status_update: item.last_status_update || item.sent_at
+        last_status_update: item.last_status_update || item.sent_at,
       }));
     } catch (error) {
       console.error('Error fetching campaign details for customer:', error);
@@ -1531,11 +1530,11 @@ class AnalyticsService {
   async getCustomerDetails(storeId, customerTypeConfig) {
     try {
       const invoices = await this.getInvoices(storeId, { includeExcluded: false });
-      
+
       // Group by customer
       const customerMap = new Map();
-      
-      invoices.forEach(invoice => {
+
+      invoices.forEach((invoice) => {
         const phone = invoice.customer_phone;
         if (!customerMap.has(phone)) {
           customerMap.set(phone, {
@@ -1543,33 +1542,33 @@ class AnalyticsService {
             name: invoice.customer_name || `Customer ${phone}`,
             totalSpent: 0,
             transactionCount: 0,
-            lastPurchase: invoice.invoice_date
+            lastPurchase: invoice.invoice_date,
           });
         }
-        
+
         const customer = customerMap.get(phone);
         customer.totalSpent += invoice.total_amount;
         customer.transactionCount += 1;
-        
+
         // Update last purchase if this invoice is more recent
         if (new Date(invoice.invoice_date) > new Date(customer.lastPurchase)) {
           customer.lastPurchase = invoice.invoice_date;
         }
       });
-      
+
       const resolvedConfig =
         customerTypeConfig ||
         (await this.getStoreCustomerTypeConfig(storeId)) ||
         DEFAULT_CUSTOMER_TYPE_CONFIG;
       // Convert to array and add customer type classification
-      const customers = Array.from(customerMap.values()).map(customer => ({
+      const customers = Array.from(customerMap.values()).map((customer) => ({
         phone: customer.phone,
         name: customer.name,
         totalSpent: Math.round(customer.totalSpent),
         customerType: determineCustomerType(customer.totalSpent, resolvedConfig),
-        lastPurchase: customer.lastPurchase
+        lastPurchase: customer.lastPurchase,
       }));
-      
+
       // Sort by total spent (descending)
       return customers.sort((a, b) => b.totalSpent - a.totalSpent);
     } catch (error) {
@@ -1589,7 +1588,7 @@ class AnalyticsService {
             templateName: templateName || null,
             sentDate: null,
             campaignId: campaignId || null,
-            recipients: []
+            recipients: [],
           };
         }
 
@@ -1599,7 +1598,7 @@ class AnalyticsService {
           return aTime - bTime;
         });
 
-        const recipients = sortedItems.map(item => ({
+        const recipients = sortedItems.map((item) => ({
           phone: item.customer_phone || '',
           name: item.customer_name || null,
           status: item.status || 'sent',
@@ -1607,7 +1606,7 @@ class AnalyticsService {
           messageId: item.message_id || null,
           lastStatusUpdate: item.last_status_update || item.sent_at || null,
           error: item.error_reason || null,
-          errorCode: item.error_code ?? null
+          errorCode: item.error_code ?? null,
         }));
 
         const reference = sortedItems[0] || {};
@@ -1617,18 +1616,18 @@ class AnalyticsService {
           templateName: reference.template_name || templateName || null,
           sentDate: reference.sent_at || start || null,
           campaignId: reference.campaign_id || campaignId || null,
-          recipients
+          recipients,
         };
       };
 
       if (campaignId) {
         const expressionAttributeNames = {
           '#campaign_id': 'campaign_id',
-          '#store_id': 'store_id'
+          '#store_id': 'store_id',
         };
         const expressionAttributeValues = {
           ':campaignId': campaignId,
-          ':storeId': storeId
+          ':storeId': storeId,
         };
 
         let keyConditionExpression = '#campaign_id = :campaignId';
@@ -1651,7 +1650,7 @@ class AnalyticsService {
           ExpressionAttributeNames: expressionAttributeNames,
           ExpressionAttributeValues: expressionAttributeValues,
           FilterExpression: '#store_id = :storeId',
-          ScanIndexForward: true
+          ScanIndexForward: true,
         });
 
         const gsiResult = await docClient.send(gsiQuery);
@@ -1662,7 +1661,7 @@ class AnalyticsService {
       }
 
       const expressionAttributeValues = {
-        ':storeId': storeId
+        ':storeId': storeId,
       };
       let keyConditionExpression = 'store_id = :storeId';
 
@@ -1703,7 +1702,7 @@ class AnalyticsService {
         TableName: CAMPAIGN_TABLE_NAME,
         KeyConditionExpression: keyConditionExpression,
         ExpressionAttributeValues: expressionAttributeValues,
-        ScanIndexForward: true
+        ScanIndexForward: true,
       };
 
       if (filterExpressions.length > 0) {
@@ -1717,7 +1716,7 @@ class AnalyticsService {
       do {
         const command = new QueryCommand({
           ...queryBase,
-          ExclusiveStartKey: lastEvaluatedKey
+          ExclusiveStartKey: lastEvaluatedKey,
         });
         const result = await docClient.send(command);
         if (result.Items) {
@@ -1745,8 +1744,8 @@ class AnalyticsService {
             TableName: FRANCHISES_TABLE,
             ProjectionExpression: '#franchise_id, trial_start, trial_end',
             ExpressionAttributeNames: {
-              '#franchise_id': 'franchise_id'
-            }
+              '#franchise_id': 'franchise_id',
+            },
           });
           franchiseItems.forEach((item) => {
             const franchiseId = item.franchise_id ? String(item.franchise_id).trim() : null;
@@ -1755,7 +1754,7 @@ class AnalyticsService {
             }
             franchiseTrialMap[franchiseId] = {
               trial_start: item.trial_start || null,
-              trial_end: item.trial_end || null
+              trial_end: item.trial_end || null,
             };
           });
         } catch (error) {
@@ -1987,7 +1986,12 @@ class AnalyticsService {
     return { dateRange, metricsByStore, invoices: filtered, allInvoices };
   }
 
-  async computeInvoiceMetricsOptimized(rangeParam = 'today', customStart, customEnd, storeIds = []) {
+  async computeInvoiceMetricsOptimized(
+    rangeParam = 'today',
+    customStart,
+    customEnd,
+    storeIds = []
+  ) {
     const dateRange = this.buildDateRange(rangeParam, customStart, customEnd);
     if (rangeParam === 'all' || !dateRange?.start || !dateRange?.end || storeIds.length === 0) {
       return this.computeInvoiceMetrics(rangeParam, customStart, customEnd);
@@ -2008,9 +2012,9 @@ class AnalyticsService {
     const invoices = [];
     for (const batch of batches) {
       const results = await Promise.all(
-        batch.map(storeId => this.getInvoicesByStoreRange(storeId, startIso, endIso))
+        batch.map((storeId) => this.getInvoicesByStoreRange(storeId, startIso, endIso))
       );
-      results.forEach(items => invoices.push(...items));
+      results.forEach((items) => invoices.push(...items));
     }
 
     const metricsByStore = this.aggregateInvoicesByStore(invoices);
@@ -2023,15 +2027,14 @@ class AnalyticsService {
       customStart,
       customEnd
     );
-    const storeMetrics =
-      metricsByStore[storeId] || {
-        revenue: 0,
-        invoices: 0,
-        eBillCustomers: 0,
-        anonymousCustomers: 0,
-        avgItemsPerOrder: null,
-        discountRate: null,
-      };
+    const storeMetrics = metricsByStore[storeId] || {
+      revenue: 0,
+      invoices: 0,
+      eBillCustomers: 0,
+      anonymousCustomers: 0,
+      avgItemsPerOrder: null,
+      discountRate: null,
+    };
     return {
       dateRange,
       totalInvoices: storeMetrics.invoices,

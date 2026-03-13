@@ -17,13 +17,13 @@ const { reconcileAll } = require('./services/billingReconciler');
 
 const SENSITIVE_FIELDS = new Set(['password', 'otp', 'token', 'access_token', 'authorization']);
 
-const sanitizePayload = payload => {
+const sanitizePayload = (payload) => {
   if (payload === null || typeof payload !== 'object') {
     return payload;
   }
 
   if (Array.isArray(payload)) {
-    return payload.map(item => sanitizePayload(item));
+    return payload.map((item) => sanitizePayload(item));
   }
 
   return Object.entries(payload).reduce((acc, [key, value]) => {
@@ -56,8 +56,10 @@ if (!fs.existsSync(logsDir)) {
 // Validate WhatsApp environment variables on startup
 function validateEnvironment() {
   const required = ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID', 'WEBHOOK_VERIFY_TOKEN'];
-  const missing = required.filter(key => !process.env[key] || process.env[key].includes('placeholder'));
-  
+  const missing = required.filter(
+    (key) => !process.env[key] || process.env[key].includes('placeholder')
+  );
+
   if (missing.length > 0) {
     logger.warn('Missing or placeholder WhatsApp environment variables', { missing });
     console.warn('⚠️  Missing WhatsApp credentials:', missing.join(', '));
@@ -75,7 +77,7 @@ app.use(
       if (req.originalUrl === '/api/franchise/payments/webhook') {
         req.rawBody = buf.toString('utf8');
       }
-    }
+    },
   })
 );
 app.use(express.urlencoded({ extended: true }));
@@ -86,7 +88,7 @@ app.use((req, res, next) => {
     method: req.method,
     url: req.originalUrl,
     query: sanitizePayload(req.query),
-    body: sanitizePayload(req.body)
+    body: sanitizePayload(req.body),
   };
 
   logger.info('Incoming request', requestDetails);
@@ -97,7 +99,7 @@ app.use((req, res, next) => {
       url: req.originalUrl,
       statusCode: res.statusCode,
       durationMs: Date.now() - start,
-      storeId: req.user?.store_id || null
+      storeId: req.user?.store_id || null,
     });
   });
 
@@ -118,10 +120,10 @@ app.use('/api/automation', automationRoutes);
 
 // Health check
 app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     timestamp: new Date().toISOString(),
-    service: 'BillBox WhatsApp Analytics Backend'
+    service: 'BillBox WhatsApp Analytics Backend',
   });
 });
 
@@ -132,16 +134,16 @@ app.get('/', (req, res) => {
 
 // Error handling middleware
 app.use((error, req, res, next) => {
-  logger.error('Unhandled error', { 
-    error: error.message, 
+  logger.error('Unhandled error', {
+    error: error.message,
     stack: error.stack,
     url: req.url,
-    method: req.method
+    method: req.method,
   });
-  
-  res.status(500).json({ 
+
+  res.status(500).json({
     error: 'Internal server error',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -159,7 +161,7 @@ app.listen(PORT, () => {
 if (BILLING_RECONCILE_ENABLED) {
   const intervalMs = BILLING_RECONCILE_INTERVAL_MINUTES * 60 * 1000;
   logger.info('Billing reconciliation enabled', {
-    intervalMinutes: BILLING_RECONCILE_INTERVAL_MINUTES
+    intervalMinutes: BILLING_RECONCILE_INTERVAL_MINUTES,
   });
   setInterval(async () => {
     if (billingReconcileRunning) {

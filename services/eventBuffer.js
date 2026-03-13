@@ -16,7 +16,7 @@ class EventBuffer {
 
     // Add to events buffer
     eventsBuffer.push(event);
-    
+
     // Keep buffer size limited
     if (eventsBuffer.length > EVENTS_BUFFER_SIZE) {
       eventsBuffer.shift();
@@ -25,16 +25,16 @@ class EventBuffer {
     // Update user analytics
     this.updateUserAnalytics(event);
 
-    logger.info('Event added to buffer', { 
-      type: event.type, 
+    logger.info('Event added to buffer', {
+      type: event.type,
       from: event.from || event.recipient,
-      bufferSize: eventsBuffer.length 
+      bufferSize: eventsBuffer.length,
     });
   }
 
   static updateUserAnalytics(event) {
     let userId;
-    
+
     if (event.type === 'message' && event.from) {
       userId = event.from;
     } else if (event.type === 'status' && event.recipient) {
@@ -55,10 +55,10 @@ class EventBuffer {
           delivered: 0,
           read: 0,
           failed: 0,
-          other: 0
+          other: 0,
         },
         last_status: '',
-        last_status_time: ''
+        last_status_time: '',
       });
     }
 
@@ -92,19 +92,23 @@ class EventBuffer {
 
   static getEventsAsHtml() {
     const events = this.getEvents();
-    
+
     if (events.length === 0) {
       return '<html><body><h1>WhatsApp Events</h1><p>No events found.</p></body></html>';
     }
 
-    const rows = events.map(event => `
+    const rows = events
+      .map(
+        (event) => `
       <tr>
         <td>${event.type}</td>
         <td>${event.from || event.recipient || 'N/A'}</td>
         <td>${event.text || event.status || 'N/A'}</td>
         <td>${new Date(event.timestamp).toLocaleString()}</td>
       </tr>
-    `).join('');
+    `
+      )
+      .join('');
 
     return `
       <html>
@@ -140,12 +144,14 @@ class EventBuffer {
 
   static getUserAnalyticsAsHtml() {
     const analytics = this.getUserAnalytics();
-    
+
     if (analytics.length === 0) {
       return '<html><body><h1>WhatsApp User Analytics</h1><p>No analytics data found.</p></body></html>';
     }
 
-    const rows = analytics.map(user => `
+    const rows = analytics
+      .map(
+        (user) => `
       <tr>
         <td>${user.user}</td>
         <td>${user.messages_received}</td>
@@ -153,7 +159,9 @@ class EventBuffer {
         <td>S:${user.statuses.sent} D:${user.statuses.delivered} R:${user.statuses.read} F:${user.statuses.failed}</td>
         <td>${user.last_status}<br><small>${new Date(user.last_status_time).toLocaleString()}</small></td>
       </tr>
-    `).join('');
+    `
+      )
+      .join('');
 
     return `
       <html>

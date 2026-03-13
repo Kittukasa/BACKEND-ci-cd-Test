@@ -4,14 +4,12 @@ const {
   GetCommand,
   QueryCommand,
   UpdateCommand,
-  DeleteCommand
+  DeleteCommand,
 } = require('@aws-sdk/lib-dynamodb');
 const { v4: uuidv4 } = require('uuid');
 
 const WORKFLOWS_TABLE =
-  process.env.WORKFLOW_TABLE ||
-  process.env.AUTOMATION_WORKFLOWS_TABLE ||
-  'AutomationWorkflows';
+  process.env.WORKFLOW_TABLE || process.env.AUTOMATION_WORKFLOWS_TABLE || 'AutomationWorkflows';
 
 const toIsoString = () => new Date().toISOString();
 
@@ -46,7 +44,7 @@ const buildWorkflowItem = (storeId, payload = {}) => {
     variables: Array.isArray(payload.variables) ? payload.variables : [],
     created_at: now,
     updated_at: now,
-    published_at: null
+    published_at: null,
   };
 };
 
@@ -57,9 +55,9 @@ const listWorkflows = async (storeId) => {
       TableName: WORKFLOWS_TABLE,
       KeyConditionExpression: 'store_id = :storeId',
       ExpressionAttributeValues: {
-        ':storeId': storeId
+        ':storeId': storeId,
       },
-      ScanIndexForward: false
+      ScanIndexForward: false,
     })
   );
   return result.Items || [];
@@ -72,8 +70,8 @@ const getWorkflow = async (storeId, workflowId) => {
       TableName: WORKFLOWS_TABLE,
       Key: {
         store_id: storeId,
-        workflow_id: workflowId
-      }
+        workflow_id: workflowId,
+      },
     })
   );
   return result.Item || null;
@@ -86,7 +84,7 @@ const createWorkflow = async (storeId, payload = {}) => {
     new PutCommand({
       TableName: WORKFLOWS_TABLE,
       Item: item,
-      ConditionExpression: 'attribute_not_exists(workflow_id)'
+      ConditionExpression: 'attribute_not_exists(workflow_id)',
     })
   );
   return item;
@@ -97,7 +95,7 @@ const updateWorkflow = async (storeId, workflowId, updates = {}) => {
   const expressionParts = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {
-    ':updatedAt': toIsoString()
+    ':updatedAt': toIsoString(),
   };
 
   const applyUpdate = (field, value) => {
@@ -148,12 +146,12 @@ const updateWorkflow = async (storeId, workflowId, updates = {}) => {
       TableName: WORKFLOWS_TABLE,
       Key: {
         store_id: storeId,
-        workflow_id: workflowId
+        workflow_id: workflowId,
       },
       UpdateExpression: `SET ${expressionParts.join(', ')}`,
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     })
   );
 
@@ -165,11 +163,11 @@ const setWorkflowStatus = async (storeId, workflowId, status) => {
   const normalizedStatus = normalizeStatus(status);
   const expressionAttributeNames = {
     '#status': 'status',
-    '#updated_at': 'updated_at'
+    '#updated_at': 'updated_at',
   };
   const expressionAttributeValues = {
     ':status': normalizedStatus,
-    ':updatedAt': toIsoString()
+    ':updatedAt': toIsoString(),
   };
   const expressionParts = ['#status = :status', '#updated_at = :updatedAt'];
 
@@ -184,12 +182,12 @@ const setWorkflowStatus = async (storeId, workflowId, status) => {
       TableName: WORKFLOWS_TABLE,
       Key: {
         store_id: storeId,
-        workflow_id: workflowId
+        workflow_id: workflowId,
       },
       UpdateExpression: `SET ${expressionParts.join(', ')}`,
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     })
   );
 
@@ -203,8 +201,8 @@ const deleteWorkflow = async (storeId, workflowId) => {
       TableName: WORKFLOWS_TABLE,
       Key: {
         store_id: storeId,
-        workflow_id: workflowId
-      }
+        workflow_id: workflowId,
+      },
     })
   );
 };
@@ -215,5 +213,5 @@ module.exports = {
   createWorkflow,
   updateWorkflow,
   setWorkflowStatus,
-  deleteWorkflow
+  deleteWorkflow,
 };

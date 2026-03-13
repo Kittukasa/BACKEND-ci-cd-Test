@@ -9,7 +9,10 @@ const CAMPAIGN_TABLE_NAME = process.env.CAMPAIGN_TABLE_NAME;
 const WALLET_TABLE = process.env.FRANCHISE_WALLET_TABLE || 'Test-Franchise_Wallets';
 const WALLET_EVENTS_TABLE = process.env.WALLET_EVENTS_TABLE || 'Test-Wallet_Events';
 const DEFAULT_STORE_SCOPE = 'ALL';
-const BILLING_LOOKBACK_DAYS = Math.max(1, parseInt(process.env.BILLING_RECONCILE_LOOKBACK_DAYS || '7', 10));
+const BILLING_LOOKBACK_DAYS = Math.max(
+  1,
+  parseInt(process.env.BILLING_RECONCILE_LOOKBACK_DAYS || '7', 10)
+);
 const BILLING_DEBUG = process.env.BILLING_DEBUG === 'true';
 
 const ANONYMOUS_PHONE = '0000000000';
@@ -28,7 +31,7 @@ const scanAll = async (params) => {
     const result = await docClient.send(
       new ScanCommand({
         ...params,
-        ExclusiveStartKey: lastEvaluatedKey
+        ExclusiveStartKey: lastEvaluatedKey,
       })
     );
     if (result.Items) {
@@ -52,15 +55,15 @@ const queryEventsBySource = async (franchiseId, sourceId, usageType) => {
         ExpressionAttributeValues: {
           ':fid': franchiseId,
           ':sourceId': sourceId,
-          ':usageType': usageType
+          ':usageType': usageType,
         },
         ExpressionAttributeNames: {
           '#source_id': 'source_id',
-          '#usage_type': 'usage_type'
+          '#usage_type': 'usage_type',
         },
         FilterExpression: '#source_id = :sourceId AND #usage_type = :usageType',
         ExclusiveStartKey: lastEvaluatedKey,
-        Limit: 100
+        Limit: 100,
       })
     );
     if (Array.isArray(result.Items) && result.Items.length > 0) {
@@ -76,14 +79,15 @@ const loadFranchiseWallets = async () => {
     TableName: WALLET_TABLE,
     FilterExpression: 'store_id = :storeScope',
     ExpressionAttributeValues: {
-      ':storeScope': DEFAULT_STORE_SCOPE
+      ':storeScope': DEFAULT_STORE_SCOPE,
     },
-    ProjectionExpression: 'franchise_id, store_id, last_ebill_reconcile_at, last_campaign_reconcile_at'
+    ProjectionExpression:
+      'franchise_id, store_id, last_ebill_reconcile_at, last_campaign_reconcile_at',
   });
   return items.map((item) => ({
     franchiseId: item.franchise_id,
     lastEbillReconcileAt: item.last_ebill_reconcile_at || null,
-    lastCampaignReconcileAt: item.last_campaign_reconcile_at || null
+    lastCampaignReconcileAt: item.last_campaign_reconcile_at || null,
   }));
 };
 
@@ -95,7 +99,8 @@ const loadStoreFranchiseMap = async () => {
     if (storeId && franchiseId) {
       map.set(String(storeId), {
         franchiseId: String(franchiseId),
-        smartEbill: info?.smart_ebill === true || info?.smart_ebill === 'true' || info?.smart_ebill === 1
+        smartEbill:
+          info?.smart_ebill === true || info?.smart_ebill === 'true' || info?.smart_ebill === 1,
       });
     }
   });
@@ -118,7 +123,7 @@ const updateWalletCheckpoint = async (franchiseId, fields) => {
   const expressionParts = [];
   const expressionAttributeNames = {};
   const expressionAttributeValues = {
-    ':updated': new Date().toISOString()
+    ':updated': new Date().toISOString(),
   };
 
   Object.entries(fields).forEach(([key, value], index) => {
@@ -137,11 +142,11 @@ const updateWalletCheckpoint = async (franchiseId, fields) => {
       TableName: WALLET_TABLE,
       Key: {
         franchise_id: franchiseId,
-        store_id: DEFAULT_STORE_SCOPE
+        store_id: DEFAULT_STORE_SCOPE,
       },
       UpdateExpression: `SET ${expressionParts.join(', ')}`,
       ExpressionAttributeNames: expressionAttributeNames,
-      ExpressionAttributeValues: expressionAttributeValues
+      ExpressionAttributeValues: expressionAttributeValues,
     })
   );
 };
@@ -154,7 +159,7 @@ const reconcileEbillInvoices = async (franchiseId, storeMap, checkpoint) => {
   const items = await scanAll({
     TableName: INVOICES_TABLE,
     ProjectionExpression:
-      'store_id, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, processed_iso_ist, customer_phone, created_at'
+      'store_id, invoice_id, invoice_no, invoice_date, processed_timestamp_ist, processed_iso_ist, customer_phone, created_at',
   });
 
   let processed = 0;
@@ -187,9 +192,7 @@ const reconcileEbillInvoices = async (franchiseId, storeMap, checkpoint) => {
     }
 
     const sourceId =
-      invoice.invoice_id ||
-      invoice.invoice_no ||
-      `calc:${storeId}-${toIso(timestamp)}`;
+      invoice.invoice_id || invoice.invoice_no || `calc:${storeId}-${toIso(timestamp)}`;
 
     const usageType = mapping?.smartEbill ? 'smart_ebill_invoice' : 'ebill_invoice';
     const alreadyBilled =
@@ -207,7 +210,7 @@ const reconcileEbillInvoices = async (franchiseId, storeMap, checkpoint) => {
       storeId,
       usageType,
       sourceId,
-      quantity: 1
+      quantity: 1,
     });
     processed += 1;
     if (timestamp > latestTimestamp) {
@@ -227,8 +230,8 @@ const reconcileDeliveredCampaigns = async (franchiseId, storeMap, checkpoint) =>
     TableName: CAMPAIGN_TABLE_NAME,
     ProjectionExpression: 'store_id, sent_at, message_id, #status, last_status_update',
     ExpressionAttributeNames: {
-      '#status': 'status'
-    }
+      '#status': 'status',
+    },
   });
 
   let processed = 0;
@@ -259,11 +262,7 @@ const reconcileDeliveredCampaigns = async (franchiseId, storeMap, checkpoint) =>
     }
 
     const sourceId = item.message_id || `${storeId}-${statusTimestamp.toISOString()}`;
-    const alreadyBilled = await queryEventsBySource(
-      franchiseId,
-      sourceId,
-      'campaign_message'
-    );
+    const alreadyBilled = await queryEventsBySource(franchiseId, sourceId, 'campaign_message');
     if (alreadyBilled) {
       if (statusTimestamp > latestTimestamp) {
         latestTimestamp = statusTimestamp;
@@ -276,7 +275,7 @@ const reconcileDeliveredCampaigns = async (franchiseId, storeMap, checkpoint) =>
       storeId,
       usageType: 'campaign_message',
       sourceId,
-      quantity: 1
+      quantity: 1,
     });
     processed += 1;
     if (statusTimestamp > latestTimestamp) {
@@ -314,14 +313,14 @@ const reconcileAll = async () => {
 
       await updateWalletCheckpoint(franchiseId, {
         last_ebill_reconcile_at: toIso(invoiceResult.latestTimestamp) || toIso(new Date()),
-        last_campaign_reconcile_at: toIso(campaignResult.latestTimestamp) || toIso(new Date())
+        last_campaign_reconcile_at: toIso(campaignResult.latestTimestamp) || toIso(new Date()),
       });
 
       if (BILLING_DEBUG) {
         logger.info('Billing reconciliation completed', {
           franchiseId,
           ebillProcessed: invoiceResult.processed,
-          campaignProcessed: campaignResult.processed
+          campaignProcessed: campaignResult.processed,
         });
       }
     }
@@ -331,5 +330,5 @@ const reconcileAll = async () => {
 };
 
 module.exports = {
-  reconcileAll
+  reconcileAll,
 };

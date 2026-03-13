@@ -2,20 +2,24 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, ScanCommand, UpdateCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
+const {
+  DynamoDBDocumentClient,
+  GetCommand,
+  ScanCommand,
+  UpdateCommand,
+  DeleteCommand,
+} = require('@aws-sdk/lib-dynamodb');
 const { randomUUID } = require('crypto');
 const { logger } = require('../config/logger');
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({
-  region: process.env.AWS_REGION || 'ap-south-2'
+  region: process.env.AWS_REGION || 'ap-south-2',
 });
 const docClient = DynamoDBDocumentClient.from(client);
 
 const TEMPLATE_TABLE =
-  process.env.TEMPLATE_CATALOG_TABLE ||
-  process.env.TEMPLATE_TABLE ||
-  'WhatsAppTemplateCatalog';
+  process.env.TEMPLATE_CATALOG_TABLE || process.env.TEMPLATE_TABLE || 'WhatsAppTemplateCatalog';
 const GRAPH_API_VERSION = process.env.GRAPH_API_VERSION || 'v17.0';
 
 // Get all templates
@@ -26,28 +30,26 @@ router.get('/', async (req, res) => {
     const storeId = (storeIdParam || authenticatedStoreId || 'GLOBAL').toString();
 
     const params = {
-      TableName: TEMPLATE_TABLE
+      TableName: TEMPLATE_TABLE,
     };
 
     const result = await docClient.send(new ScanCommand(params));
     const items = result.Items || [];
 
     const filtered =
-      storeId && storeId !== 'GLOBAL'
-        ? items.filter(item => item.storeId === storeId)
-        : items;
+      storeId && storeId !== 'GLOBAL' ? items.filter((item) => item.storeId === storeId) : items;
 
-    const templates = filtered.map(item => ({
+    const templates = filtered.map((item) => ({
       ...item,
       templateId: item.templateId || item.id,
       id: item.templateId || item.id,
-      storeId: item.storeId || storeId || 'GLOBAL'
+      storeId: item.storeId || storeId || 'GLOBAL',
     }));
 
     res.json({
       success: true,
       data: templates,
-      message: `Found ${templates.length} templates`
+      message: `Found ${templates.length} templates`,
     });
   } catch (error) {
     logger.error('Error fetching templates:', error);
@@ -55,7 +57,7 @@ router.get('/', async (req, res) => {
       success: false,
       message: 'Failed to fetch templates',
       error: error.message,
-      data: []
+      data: [],
     });
   }
 });
@@ -64,30 +66,24 @@ router.get('/', async (req, res) => {
 router.get('/predefined', async (req, res) => {
   try {
     const params = {
-      TableName: TEMPLATE_TABLE
+      TableName: TEMPLATE_TABLE,
     };
 
     const result = await docClient.send(new ScanCommand(params));
     const items = result.Items || [];
 
     const templates = items
-      .map(item => {
+      .map((item) => {
         const id = item.templateId || item.id || item.name;
         const name = item.name || 'Template';
         const category = (item.category || 'general').toString();
         const industryCategoryValue =
-          item.industryCategory ||
-          item.industry_category ||
-          item.category ||
-          null;
+          item.industryCategory || item.industry_category || item.category || null;
         const industryCategory =
           typeof industryCategoryValue === 'string' && industryCategoryValue.trim()
             ? industryCategoryValue.trim()
             : null;
-        const occasionCategoryValue =
-          item.occasionCategory ||
-          item.occasion_category ||
-          null;
+        const occasionCategoryValue = item.occasionCategory || item.occasion_category || null;
         const occasionCategory =
           typeof occasionCategoryValue === 'string' && occasionCategoryValue.trim()
             ? occasionCategoryValue.trim()
@@ -108,15 +104,16 @@ router.get('/predefined', async (req, res) => {
         const variables = Array.isArray(item.sampleVariables)
           ? item.sampleVariables
           : Array.isArray(item.variables)
-          ? item.variables
-          : [];
-        const examples = item.examples && typeof item.examples === 'object'
-          ? {
-              body: Array.isArray(item.examples.body) ? item.examples.body : [],
-              headerText: Array.isArray(item.examples.headerText) ? item.examples.headerText : [],
-              footerText: Array.isArray(item.examples.footerText) ? item.examples.footerText : []
-            }
-          : undefined;
+            ? item.variables
+            : [];
+        const examples =
+          item.examples && typeof item.examples === 'object'
+            ? {
+                body: Array.isArray(item.examples.body) ? item.examples.body : [],
+                headerText: Array.isArray(item.examples.headerText) ? item.examples.headerText : [],
+                footerText: Array.isArray(item.examples.footerText) ? item.examples.footerText : [],
+              }
+            : undefined;
         const previewImageUrl = item.previewImageUrl || headerImageUrl || null;
         const description = item.description || bodyText?.slice(0, 120);
         const updatedAt =
@@ -142,15 +139,15 @@ router.get('/predefined', async (req, res) => {
           examples,
           previewImageUrl,
           description,
-          updatedAt
+          updatedAt,
         };
       })
-      .filter(template => template.id);
+      .filter((template) => template.id);
 
     res.json({
       success: true,
       data: templates,
-      message: `Found ${templates.length} predefined templates`
+      message: `Found ${templates.length} predefined templates`,
     });
   } catch (error) {
     logger.error('Error fetching predefined templates:', error);
@@ -164,7 +161,7 @@ router.get('/predefined', async (req, res) => {
       success: false,
       message,
       error: error.message,
-      data: []
+      data: [],
     });
   }
 });
@@ -180,8 +177,8 @@ router.get('/:id', async (req, res) => {
       new GetCommand({
         TableName: TEMPLATE_TABLE,
         Key: {
-          templateId: id
-        }
+          templateId: id,
+        },
       })
     );
 
@@ -195,11 +192,11 @@ router.get('/:id', async (req, res) => {
         FilterExpression: '#legacyId = :id OR #name = :id',
         ExpressionAttributeNames: {
           '#legacyId': 'id',
-          '#name': 'name'
+          '#name': 'name',
         },
         ExpressionAttributeValues: {
-          ':id': id
-        }
+          ':id': id,
+        },
       };
 
       const scanResult = await docClient.send(new ScanCommand(params));
@@ -209,7 +206,7 @@ router.get('/:id', async (req, res) => {
     if (!item) {
       return res.status(404).json({
         success: false,
-        message: 'Template not found'
+        message: 'Template not found',
       });
     }
 
@@ -218,16 +215,16 @@ router.get('/:id', async (req, res) => {
       data: {
         ...item,
         templateId: item.templateId || item.id,
-        id: item.templateId || item.id
+        id: item.templateId || item.id,
       },
-      message: 'Template retrieved successfully'
+      message: 'Template retrieved successfully',
     });
   } catch (error) {
     logger.error('Error fetching template:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to fetch template',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -249,14 +246,14 @@ router.post('/', async (req, res) => {
       footerText,
       buttons = [],
       variables = [],
-      examples = {}
+      examples = {},
     } = req.body;
 
     // Validation
     if (!name || !bodyText || !storeId) {
       return res.status(400).json({
         success: false,
-        message: 'Name, body text, and store ID are required'
+        message: 'Name, body text, and store ID are required',
       });
     }
 
@@ -285,36 +282,35 @@ router.post('/', async (req, res) => {
           ? {
               body: Array.isArray(examples.body) ? examples.body : [],
               headerText: Array.isArray(examples.headerText) ? examples.headerText : [],
-              footerText: Array.isArray(examples.footerText) ? examples.footerText : []
+              footerText: Array.isArray(examples.footerText) ? examples.footerText : [],
             }
           : {
               body: [],
               headerText: [],
-              footerText: []
+              footerText: [],
             },
       createdAt: now,
       updatedAt: now,
-      createdBy: req.user?.userId || 'system'
+      createdBy: req.user?.userId || 'system',
     };
 
     logger.info('Template creation request received; skipping catalog persistence', {
       storeId,
       templateId,
-      templateName: name
+      templateName: name,
     });
 
     res.status(201).json({
       success: true,
       data: template,
-      message: 'Template captured successfully'
+      message: 'Template captured successfully',
     });
-
   } catch (error) {
     logger.error('Error creating template:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to create template',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -341,7 +337,7 @@ router.put('/:id', async (req, res) => {
     Object.keys(updateData).forEach((key, index) => {
       const attrName = `#attr${index}`;
       const attrValue = `:val${index}`;
-      
+
       updateExpressions.push(`${attrName} = ${attrValue}`);
       expressionAttributeNames[attrName] = key;
       expressionAttributeValues[attrValue] = updateData[key];
@@ -350,12 +346,12 @@ router.put('/:id', async (req, res) => {
     const params = {
       TableName: TEMPLATE_TABLE,
       Key: {
-        templateId: id
+        templateId: id,
       },
       UpdateExpression: `SET ${updateExpressions.join(', ')}`,
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     };
 
     const result = await docClient.send(new UpdateCommand(params));
@@ -364,17 +360,16 @@ router.put('/:id', async (req, res) => {
       success: true,
       data: {
         ...result.Attributes,
-        id: result.Attributes?.templateId || result.Attributes?.id
+        id: result.Attributes?.templateId || result.Attributes?.id,
       },
-      message: 'Template updated successfully'
+      message: 'Template updated successfully',
     });
-
   } catch (error) {
     logger.error('Error updating template:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to update template',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -392,7 +387,8 @@ router.delete('/:id', async (req, res) => {
     if (!wabaId || !accessToken) {
       return res.status(400).json({
         success: false,
-        message: 'WhatsApp configuration not available for this store. Please configure WABA credentials.'
+        message:
+          'WhatsApp configuration not available for this store. Please configure WABA credentials.',
       });
     }
 
@@ -405,8 +401,8 @@ router.delete('/:id', async (req, res) => {
           new GetCommand({
             TableName: TEMPLATE_TABLE,
             Key: {
-              templateId: id
-            }
+              templateId: id,
+            },
           })
         );
         existingTemplate = existing.Item || null;
@@ -415,7 +411,7 @@ router.delete('/:id', async (req, res) => {
         logger.warn('Failed to fetch template before delete', {
           storeId,
           id,
-          error: lookupError.message
+          error: lookupError.message,
         });
       }
     }
@@ -423,7 +419,7 @@ router.delete('/:id', async (req, res) => {
     if (!templateName) {
       return res.status(400).json({
         success: false,
-        message: 'Template name is required to delete the template from WhatsApp.'
+        message: 'Template name is required to delete the template from WhatsApp.',
       });
     }
 
@@ -432,11 +428,11 @@ router.delete('/:id', async (req, res) => {
     try {
       await axios.delete(url, {
         params: {
-          name: templateName
+          name: templateName,
         },
         headers: {
-          Authorization: `Bearer ${accessToken}`
-        }
+          Authorization: `Bearer ${accessToken}`,
+        },
       });
     } catch (graphError) {
       const status = graphError.response?.status || 500;
@@ -450,13 +446,13 @@ router.delete('/:id', async (req, res) => {
         templateName,
         status,
         error: graphMessage,
-        details: graphError.response?.data
+        details: graphError.response?.data,
       });
 
       return res.status(status).json({
         success: false,
         message: graphMessage,
-        error: graphError.response?.data || null
+        error: graphError.response?.data || null,
       });
     }
 
@@ -465,27 +461,27 @@ router.delete('/:id', async (req, res) => {
         new DeleteCommand({
           TableName: TEMPLATE_TABLE,
           Key: {
-            templateId: id
-          }
+            templateId: id,
+          },
         })
       );
     } catch (dbError) {
       logger.warn('Failed to remove template record after WhatsApp delete', {
         id,
-        error: dbError.message
+        error: dbError.message,
       });
     }
 
     res.json({
       success: true,
-      message: 'Template deleted successfully'
+      message: 'Template deleted successfully',
     });
   } catch (error) {
     logger.error('Error deleting template:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to delete template',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -500,17 +496,17 @@ router.post('/:id/request-verification', async (req, res) => {
       TableName: TEMPLATE_TABLE,
       Key: {
         id: id,
-        storeId: storeId
+        storeId: storeId,
       },
       UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt',
       ExpressionAttributeNames: {
-        '#status': 'status'
+        '#status': 'status',
       },
       ExpressionAttributeValues: {
         ':status': 'pending',
-        ':updatedAt': new Date().toISOString()
+        ':updatedAt': new Date().toISOString(),
       },
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     };
 
     const result = await docClient.send(new UpdateCommand(params));
@@ -518,15 +514,14 @@ router.post('/:id/request-verification', async (req, res) => {
     res.json({
       success: true,
       data: result.Attributes,
-      message: 'Template verification requested successfully'
+      message: 'Template verification requested successfully',
     });
-
   } catch (error) {
     logger.error('Error requesting template verification:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to request template verification',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -541,19 +536,20 @@ router.post('/:id/approve', async (req, res) => {
       TableName: TEMPLATE_TABLE,
       Key: {
         id: id,
-        storeId: storeId
+        storeId: storeId,
       },
-      UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt, approvedAt = :approvedAt, approvedBy = :approvedBy',
+      UpdateExpression:
+        'SET #status = :status, updatedAt = :updatedAt, approvedAt = :approvedAt, approvedBy = :approvedBy',
       ExpressionAttributeNames: {
-        '#status': 'status'
+        '#status': 'status',
       },
       ExpressionAttributeValues: {
         ':status': 'approved',
         ':updatedAt': new Date().toISOString(),
         ':approvedAt': new Date().toISOString(),
-        ':approvedBy': req.user?.userId || 'admin'
+        ':approvedBy': req.user?.userId || 'admin',
       },
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     };
 
     const result = await docClient.send(new UpdateCommand(params));
@@ -561,15 +557,14 @@ router.post('/:id/approve', async (req, res) => {
     res.json({
       success: true,
       data: result.Attributes,
-      message: 'Template approved successfully'
+      message: 'Template approved successfully',
     });
-
   } catch (error) {
     logger.error('Error approving template:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to approve template',
-      error: error.message
+      error: error.message,
     });
   }
 });
@@ -585,20 +580,21 @@ router.post('/:id/reject', async (req, res) => {
       TableName: TEMPLATE_TABLE,
       Key: {
         id: id,
-        storeId: storeId
+        storeId: storeId,
       },
-      UpdateExpression: 'SET #status = :status, updatedAt = :updatedAt, rejectedAt = :rejectedAt, rejectedBy = :rejectedBy, rejectionReason = :reason',
+      UpdateExpression:
+        'SET #status = :status, updatedAt = :updatedAt, rejectedAt = :rejectedAt, rejectedBy = :rejectedBy, rejectionReason = :reason',
       ExpressionAttributeNames: {
-        '#status': 'status'
+        '#status': 'status',
       },
       ExpressionAttributeValues: {
         ':status': 'rejected',
         ':updatedAt': new Date().toISOString(),
         ':rejectedAt': new Date().toISOString(),
         ':rejectedBy': req.user?.userId || 'admin',
-        ':reason': reason || 'No reason provided'
+        ':reason': reason || 'No reason provided',
       },
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     };
 
     const result = await docClient.send(new UpdateCommand(params));
@@ -606,15 +602,14 @@ router.post('/:id/reject', async (req, res) => {
     res.json({
       success: true,
       data: result.Attributes,
-      message: 'Template rejected successfully'
+      message: 'Template rejected successfully',
     });
-
   } catch (error) {
     logger.error('Error rejecting template:', error);
     res.status(500).json({
       success: false,
       message: 'Failed to reject template',
-      error: error.message
+      error: error.message,
     });
   }
 });

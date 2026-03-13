@@ -4,7 +4,7 @@ const automationService = require('../services/automationService');
 
 const router = express.Router();
 
-const normalizeMatchText = value => (value || '').toString().toLowerCase().trim();
+const normalizeMatchText = (value) => (value || '').toString().toLowerCase().trim();
 
 const matchKeywordTrigger = (triggerConfig, inboundText) => {
   if (!triggerConfig || !Array.isArray(triggerConfig.keywords)) {
@@ -19,16 +19,14 @@ const matchKeywordTrigger = (triggerConfig, inboundText) => {
     requestedMatchType === 'any'
       ? 'any'
       : requestedMatchType === 'contains'
-      ? 'contains'
-      : 'equals';
-  const keywords = triggerConfig.keywords
-    .map(item => normalizeMatchText(item))
-    .filter(Boolean);
+        ? 'contains'
+        : 'equals';
+  const keywords = triggerConfig.keywords.map((item) => normalizeMatchText(item)).filter(Boolean);
   if (matchType === 'equals') {
     if (!keywords.length) {
       return false;
     }
-    return keywords.some(keyword => normalizedMessage === keyword);
+    return keywords.some((keyword) => normalizedMessage === keyword);
   }
   if (matchType === 'any') {
     return true;
@@ -37,7 +35,7 @@ const matchKeywordTrigger = (triggerConfig, inboundText) => {
     if (!keywords.length) {
       return false;
     }
-    return keywords.some(keyword => normalizedMessage.includes(keyword));
+    return keywords.some((keyword) => normalizedMessage.includes(keyword));
   }
   return false;
 };
@@ -57,7 +55,7 @@ const findWorkflowMatch = (workflows, inboundText) => {
     }
     const spec = workflow.spec || {};
     const nodes = Array.isArray(spec.nodes) ? spec.nodes : [];
-    const triggerNode = nodes.find(node => node?.type === 'TRIGGER');
+    const triggerNode = nodes.find((node) => node?.type === 'TRIGGER');
     const triggerConfig = triggerNode?.config || {};
     const triggerType = String(triggerConfig.trigger_type || '').toLowerCase();
     if (triggerType !== 'keyword') {
@@ -73,8 +71,8 @@ const findWorkflowMatch = (workflows, inboundText) => {
       requestedMatchType === 'any'
         ? 'any'
         : requestedMatchType === 'contains'
-        ? 'contains'
-        : 'equals';
+          ? 'contains'
+          : 'equals';
 
     if (matchType === 'equals') {
       exactMatches.push(workflow);
@@ -103,8 +101,8 @@ const resolveStoreId = (req) => {
     typeof req.query?.storeId === 'string'
       ? req.query.storeId.trim()
       : typeof req.body?.storeId === 'string'
-      ? req.body.storeId.trim()
-      : null;
+        ? req.body.storeId.trim()
+        : null;
   const tokenStoreId = req.user?.store_id ? req.user.store_id.toString() : null;
   return { provided, tokenStoreId, storeId: provided || tokenStoreId };
 };
@@ -192,9 +190,9 @@ router.post('/workflows/test-match', async (req, res) => {
       workflow: {
         workflow_id: matched.workflow_id,
         name: matched.name,
-        status: matched.status
+        status: matched.status,
       },
-      trigger: triggerDetails
+      trigger: triggerDetails,
     });
   } catch (error) {
     logger.error('Failed to test workflow match', { storeId, error: error.message });
@@ -207,7 +205,16 @@ router.post('/workflows', async (req, res) => {
   if (!ensureAuthorizedStore(tokenStoreId, storeId, res)) {
     return;
   }
-  const { name, description, status, input_text, input_variations, message_text, buttons, variables } = req.body || {};
+  const {
+    name,
+    description,
+    status,
+    input_text,
+    input_variations,
+    message_text,
+    buttons,
+    variables,
+  } = req.body || {};
   const spec = parseSpec(req.body?.spec);
   if (!name || typeof name !== 'string') {
     return res.status(400).json({ error: 'Workflow name is required.' });
@@ -225,7 +232,7 @@ router.post('/workflows', async (req, res) => {
       input_variations: Array.isArray(input_variations) ? input_variations : [],
       message_text: typeof message_text === 'string' ? message_text : '',
       buttons: Array.isArray(buttons) ? buttons : [],
-      variables: Array.isArray(variables) ? variables : []
+      variables: Array.isArray(variables) ? variables : [],
     });
     return res.status(201).json({ success: true, data: created });
   } catch (error) {
@@ -255,7 +262,7 @@ router.put('/workflows/:workflowId', async (req, res) => {
       : undefined,
     message_text: typeof req.body?.message_text === 'string' ? req.body.message_text : undefined,
     buttons: Array.isArray(req.body?.buttons) ? req.body.buttons : undefined,
-    variables: Array.isArray(req.body?.variables) ? req.body.variables : undefined
+    variables: Array.isArray(req.body?.variables) ? req.body.variables : undefined,
   };
   try {
     const updated = await automationService.updateWorkflow(storeId, workflowId, updates);
@@ -327,11 +334,11 @@ module.exports = router;
 const extractTriggerDetails = (workflow) => {
   const spec = workflow?.spec || {};
   const nodes = Array.isArray(spec.nodes) ? spec.nodes : [];
-  const triggerNode = nodes.find(node => node?.type === 'TRIGGER');
+  const triggerNode = nodes.find((node) => node?.type === 'TRIGGER');
   const triggerConfig = triggerNode?.config || {};
   return {
     trigger_type: triggerConfig.trigger_type || null,
     match: triggerConfig.match || null,
-    keywords: Array.isArray(triggerConfig.keywords) ? triggerConfig.keywords : []
+    keywords: Array.isArray(triggerConfig.keywords) ? triggerConfig.keywords : [],
   };
 };

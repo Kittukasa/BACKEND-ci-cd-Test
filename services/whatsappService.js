@@ -7,23 +7,23 @@ class WhatsAppService {
     this.phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
     this.graphApiVersion = process.env.GRAPH_API_VERSION;
     this.baseUrl = `https://graph.facebook.com/${this.graphApiVersion}/${this.phoneNumberId}/messages`;
-    
+
     // Validate required environment variables
     this.validateConfig();
   }
 
   validateConfig() {
     const required = ['WHATSAPP_ACCESS_TOKEN', 'WHATSAPP_PHONE_NUMBER_ID'];
-    const missing = required.filter(key => !process.env[key]);
-    
+    const missing = required.filter((key) => !process.env[key]);
+
     if (missing.length > 0) {
       logger.error('Missing required WhatsApp environment variables', { missing });
       throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
     }
-    
+
     logger.info('WhatsApp service initialized', {
       phoneNumberId: this.phoneNumberId,
-      graphApiVersion: this.graphApiVersion
+      graphApiVersion: this.graphApiVersion,
     });
   }
 
@@ -32,21 +32,21 @@ class WhatsAppService {
       const payload = {
         messaging_product: 'whatsapp',
         to: to,
-        ...message
+        ...message,
       };
 
       const response = await axios.post(this.baseUrl, payload, {
         headers: {
-          'Authorization': `Bearer ${this.accessToken}`,
-          'Content-Type': 'application/json'
+          Authorization: `Bearer ${this.accessToken}`,
+          'Content-Type': 'application/json',
         },
-        timeout: 10000
+        timeout: 10000,
       });
 
       logger.info('Message sent successfully', {
         to,
         messageId: response.data.messages?.[0]?.id,
-        status: response.status
+        status: response.status,
       });
 
       return response.data;
@@ -54,7 +54,7 @@ class WhatsAppService {
       logger.error('Failed to send WhatsApp message', {
         to,
         error: error.message,
-        response: error.response?.data
+        response: error.response?.data,
       });
       throw error;
     }
@@ -63,7 +63,7 @@ class WhatsAppService {
   async sendTextMessage(to, text) {
     const message = {
       type: 'text',
-      text: { body: text }
+      text: { body: text },
     };
     return this.sendMessage(to, message);
   }
@@ -72,7 +72,7 @@ class WhatsAppService {
     const message = {
       type: 'text',
       text: { body: text },
-      context: { message_id: messageId }
+      context: { message_id: messageId },
     };
     return this.sendMessage(to, message);
   }
@@ -84,13 +84,13 @@ class WhatsAppService {
         type: 'list',
         header: {
           type: 'text',
-          text: 'Choose an option'
+          text: 'Choose an option',
         },
         body: {
-          text: 'Please select one of the following options:'
+          text: 'Please select one of the following options:',
         },
         footer: {
-          text: 'BillBox WhatsApp Service'
+          text: 'BillBox WhatsApp Service',
         },
         action: {
           button: 'View Options',
@@ -101,14 +101,14 @@ class WhatsAppService {
                 {
                   id: 'service_1',
                   title: 'Billing Support',
-                  description: 'Get help with your billing'
+                  description: 'Get help with your billing',
                 },
                 {
                   id: 'service_2',
                   title: 'Account Info',
-                  description: 'View your account details'
-                }
-              ]
+                  description: 'View your account details',
+                },
+              ],
             },
             {
               title: 'Support',
@@ -116,13 +116,13 @@ class WhatsAppService {
                 {
                   id: 'support_1',
                   title: 'Contact Support',
-                  description: 'Speak with our support team'
-                }
-              ]
-            }
-          ]
-        }
-      }
+                  description: 'Speak with our support team',
+                },
+              ],
+            },
+          ],
+        },
+      },
     };
     return this.sendMessage(to, message);
   }
@@ -134,13 +134,13 @@ class WhatsAppService {
         type: 'button',
         header: {
           type: 'text',
-          text: 'Quick Actions'
+          text: 'Quick Actions',
         },
         body: {
-          text: 'What would you like to do?'
+          text: 'What would you like to do?',
         },
         footer: {
-          text: 'BillBox WhatsApp Service'
+          text: 'BillBox WhatsApp Service',
         },
         action: {
           buttons: [
@@ -148,19 +148,19 @@ class WhatsAppService {
               type: 'reply',
               reply: {
                 id: 'btn_help',
-                title: 'Get Help'
-              }
+                title: 'Get Help',
+              },
             },
             {
               type: 'reply',
               reply: {
                 id: 'btn_status',
-                title: 'Check Status'
-              }
-            }
-          ]
-        }
-      }
+                title: 'Check Status',
+              },
+            },
+          ],
+        },
+      },
     };
     return this.sendMessage(to, message);
   }
