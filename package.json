@@ -29,6 +29,7 @@
     "winston-daily-rotate-file": "^4.7.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitest/coverage-v8": "^4.1.0",
     "eslint": "^10.0.3",
     "nodemon": "^3.0.1",
