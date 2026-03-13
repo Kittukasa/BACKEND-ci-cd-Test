@@ -3,7 +3,15 @@ import js from '@eslint/js'
 export default [
   js.configs.recommended,
   {
+    files: ['**/*.js'],
+    ignores: [
+      'node_modules/**',
+      'coverage/**',
+      'reports/**'
+    ],
     languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
       globals: {
         require: 'readonly',
         module: 'readonly',
