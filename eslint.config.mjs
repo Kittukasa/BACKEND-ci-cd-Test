@@ -31,7 +31,8 @@ export default [
       'no-console': 'off',
       'curly': 'error',
       'eqeqeq': 'error',
-      'no-extra-semi': 'error'
+      'no-extra-semi': 'error',
+      'preserve-caught-error': 'off'
     }
   }
 ]
